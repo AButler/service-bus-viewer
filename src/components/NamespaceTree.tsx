@@ -39,6 +39,7 @@ export interface SelectedEntity {
   itemId: string;
   kind: "queue" | "subscription";
   namespaceName: string;
+  namespaceHost: string;
   entityPath: string;
   label: string;
   countDetails: MessageCountDetails;
@@ -52,6 +53,19 @@ interface NamespaceTreeProps {
 }
 
 // --- Small presentational helpers --------------------------------------------
+
+/**
+ * Derive a namespace host from its Service Bus endpoint: the URL hostname, with
+ * `:<port>` appended only when the port is non-standard for the protocol.
+ */
+function deriveNamespaceHost(serviceBusEndpoint: string): string {
+  try {
+    const url = new URL(serviceBusEndpoint);
+    return url.port ? `${url.hostname}:${url.port}` : url.hostname;
+  } catch {
+    return serviceBusEndpoint;
+  }
+}
 
 function CountBadge({ active, dead }: { active: number; dead: number }) {
   if (active === 0 && dead === 0) return null;
@@ -340,16 +354,7 @@ function NamespaceItem({
 }) {
   const itemId = `namespace:${namespace.name}`;
   const isExpanded = expandedItems.includes(itemId);
-  const host = (() => {
-    try {
-      const url = new URL(namespace.properties.serviceBusEndpoint);
-      // `url.port` is empty for the protocol's default port (e.g. 443 for
-      // https), so only append it when it's non-standard.
-      return url.port ? `${url.hostname}:${url.port}` : url.hostname;
-    } catch {
-      return namespace.properties.serviceBusEndpoint;
-    }
-  })();
+  const host = deriveNamespaceHost(namespace.properties.serviceBusEndpoint);
 
   return (
     <TreeItem
@@ -367,7 +372,7 @@ function NamespaceItem({
           <Badge
             variant="dot"
             overlap="circular"
-            anchorOrigin={{ vertical: "top", horizontal: "right" }}
+            anchorOrigin={{ vertical: "bottom", horizontal: "right" }}
             color={
               namespaceStatusColor[namespace.properties.status] ?? "warning"
             }
@@ -434,6 +439,12 @@ function useResolveSelection() {
     const parts = rest.split("/");
     const namespaceName = parts[0];
 
+    const namespaces = queryClient.getQueryData<SBNamespace[]>(["namespaces"]);
+    const namespace = namespaces?.find((n) => n.name === namespaceName);
+    const namespaceHost = namespace
+      ? deriveNamespaceHost(namespace.properties.serviceBusEndpoint)
+      : namespaceName;
+
     if (kind === "queue") {
       const queues = queryClient.getQueryData<SBQueue[]>([
         "queues",
@@ -445,6 +456,7 @@ function useResolveSelection() {
         itemId,
         kind: "queue",
         namespaceName,
+        namespaceHost,
         entityPath: queue.name,
         label: queue.name,
         countDetails: queue.properties.countDetails,
@@ -464,6 +476,7 @@ function useResolveSelection() {
         itemId,
         kind: "subscription",
         namespaceName,
+        namespaceHost,
         entityPath: `${topicName}/${subName}`,
         label: `${topicName} / ${subName}`,
         countDetails: subscription.properties.countDetails,

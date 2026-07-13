@@ -72,6 +72,10 @@ function App() {
     });
   };
 
+  const handleRefreshMessages = () => {
+    queryClient.invalidateQueries({ queryKey: ["messages"] });
+  };
+
   const handleEntitySelect = (entity: SelectedEntity) => {
     setSelectedEntity(entity);
     setSelectedMessage(null);
@@ -200,6 +204,7 @@ function App() {
             entity={selectedEntity}
             view={messageView}
             onViewChange={handleViewChange}
+            onRefresh={handleRefreshMessages}
           />
           <Box sx={{ flexGrow: 1, minHeight: 0 }}>
             <MessageGrid
