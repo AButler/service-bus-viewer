@@ -28,25 +28,48 @@ const gray = {
 };
 
 export const theme = createTheme({
-  cssVariables: true,
-  palette: {
-    mode: "light",
-    primary: {
-      light: brand[200],
-      main: brand[400],
-      dark: brand[700],
-      contrastText: "hsl(0, 0%, 100%)",
+  cssVariables: { colorSchemeSelector: "class" },
+  colorSchemes: {
+    light: {
+      palette: {
+        primary: {
+          light: brand[200],
+          main: brand[400],
+          dark: brand[700],
+          contrastText: "hsl(0, 0%, 100%)",
+        },
+        background: {
+          default: "hsl(0, 0%, 99%)",
+          paper: "hsl(220, 35%, 97%)",
+        },
+        text: {
+          primary: gray[800],
+          secondary: gray[600],
+        },
+        divider: alpha(gray[300], 0.4),
+        grey: gray,
+      },
     },
-    background: {
-      default: "hsl(0, 0%, 99%)",
-      paper: "hsl(220, 35%, 97%)",
+    dark: {
+      palette: {
+        primary: {
+          light: brand[300],
+          main: brand[400],
+          dark: brand[700],
+          contrastText: "hsl(0, 0%, 100%)",
+        },
+        background: {
+          default: "hsl(220, 30%, 4%)",
+          paper: "hsl(220, 30%, 7%)",
+        },
+        text: {
+          primary: "hsl(0, 0%, 100%)",
+          secondary: gray[400],
+        },
+        divider: alpha(gray[700], 0.6),
+        grey: gray,
+      },
     },
-    text: {
-      primary: gray[800],
-      secondary: gray[600],
-    },
-    divider: alpha(gray[300], 0.4),
-    grey: gray,
   },
   shape: {
     borderRadius: 8,
@@ -77,10 +100,10 @@ export const theme = createTheme({
     MuiAppBar: {
       styleOverrides: {
         root: ({ theme }) => ({
-          backgroundColor: theme.palette.background.default,
-          color: theme.palette.text.primary,
+          backgroundColor: (theme.vars || theme).palette.background.default,
+          color: (theme.vars || theme).palette.text.primary,
           boxShadow: "none",
-          borderBottom: `1px solid ${theme.palette.divider}`,
+          borderBottom: `1px solid ${(theme.vars || theme).palette.divider}`,
           backgroundImage: "none",
         }),
       },

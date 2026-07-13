@@ -15,7 +15,10 @@ interface NamespaceTreeProps {
   onSelect: (entityId: string | null) => void;
 }
 
-const statusColor: Record<NamespaceNode["status"], "success" | "warning" | "error"> = {
+const statusColor: Record<
+  NamespaceNode["status"],
+  "success" | "warning" | "error"
+> = {
   connected: "success",
   connecting: "warning",
   error: "error",
@@ -24,8 +27,24 @@ const statusColor: Record<NamespaceNode["status"], "success" | "warning" | "erro
 function CountBadge({ active, dead }: { active: number; dead: number }) {
   return (
     <Box sx={{ display: "flex", gap: 0.5, ml: "auto", pl: 1 }}>
-      {active > 0 && <Chip size="small" label={active} color="primary" variant="outlined" sx={{ height: 20 }} />}
-      {dead > 0 && <Chip size="small" label={dead} color="error" variant="outlined" sx={{ height: 20 }} />}
+      {active > 0 && (
+        <Chip
+          size="small"
+          label={active}
+          color="primary"
+          variant="outlined"
+          sx={{ height: 20 }}
+        />
+      )}
+      {dead > 0 && (
+        <Chip
+          size="small"
+          label={dead}
+          color="error"
+          variant="outlined"
+          sx={{ height: 20 }}
+        />
+      )}
     </Box>
   );
 }
@@ -42,17 +61,25 @@ function EntityLabel({
   dead?: number;
 }) {
   return (
-    <Box sx={{ display: "flex", alignItems: "center", gap: 1, py: 0.25, pr: 0.5 }}>
+    <Box
+      sx={{ display: "flex", alignItems: "center", gap: 1, py: 0.25, pr: 0.5 }}
+    >
       {icon}
       <Typography variant="body2" noWrap sx={{ flexShrink: 1, minWidth: 0 }}>
         {name}
       </Typography>
-      {active !== undefined && dead !== undefined && <CountBadge active={active} dead={dead} />}
+      {active !== undefined && dead !== undefined && (
+        <CountBadge active={active} dead={dead} />
+      )}
     </Box>
   );
 }
 
-export default function NamespaceTree({ namespaces, selectedId, onSelect }: NamespaceTreeProps) {
+export default function NamespaceTree({
+  namespaces,
+  selectedId,
+  onSelect,
+}: NamespaceTreeProps) {
   return (
     <SimpleTreeView
       selectedItems={selectedId}
@@ -62,7 +89,11 @@ export default function NamespaceTree({ namespaces, selectedId, onSelect }: Name
           onSelect(itemId);
         }
       }}
-      defaultExpandedItems={namespaces.flatMap((ns) => [ns.id, `${ns.id}::queues`, `${ns.id}::topics`])}
+      defaultExpandedItems={namespaces.flatMap((ns) => [
+        ns.id,
+        `${ns.id}::queues`,
+        `${ns.id}::topics`,
+      ])}
       sx={{ px: 1, py: 1, overflowY: "auto", flexGrow: 1 }}
     >
       {namespaces.map((ns) => (
@@ -70,23 +101,38 @@ export default function NamespaceTree({ namespaces, selectedId, onSelect }: Name
           key={ns.id}
           itemId={ns.id}
           label={
-            <Box sx={{ display: "flex", alignItems: "center", gap: 1, py: 0.5 }}>
+            <Box
+              sx={{ display: "flex", alignItems: "center", gap: 1, py: 0.5 }}
+            >
               <CloudQueueRoundedIcon fontSize="small" color="action" />
               <Box sx={{ minWidth: 0 }}>
                 <Typography variant="subtitle2" noWrap>
                   {ns.name}
                 </Typography>
-                <Typography variant="caption" color="text.secondary" noWrap sx={{ display: "block" }}>
+                <Typography
+                  variant="caption"
+                  color="text.secondary"
+                  noWrap
+                  sx={{ display: "block" }}
+                >
                   {ns.endpoint}
                 </Typography>
               </Box>
-              <CircleIcon sx={{ ml: "auto", fontSize: 10 }} color={statusColor[ns.status]} />
+              <CircleIcon
+                sx={{ ml: "auto", fontSize: 10 }}
+                color={statusColor[ns.status]}
+              />
             </Box>
           }
         >
           <TreeItem
             itemId={`${ns.id}::queues`}
-            label={<EntityLabel icon={<FolderRoundedIcon fontSize="small" color="action" />} name={`Queues (${ns.queues.length})`} />}
+            label={
+              <EntityLabel
+                icon={<FolderRoundedIcon fontSize="small" color="action" />}
+                name={`Queues (${ns.queues.length})`}
+              />
+            }
           >
             {ns.queues.map((q) => (
               <TreeItem
@@ -106,13 +152,25 @@ export default function NamespaceTree({ namespaces, selectedId, onSelect }: Name
 
           <TreeItem
             itemId={`${ns.id}::topics`}
-            label={<EntityLabel icon={<FolderRoundedIcon fontSize="small" color="action" />} name={`Topics (${ns.topics.length})`} />}
+            label={
+              <EntityLabel
+                icon={<FolderRoundedIcon fontSize="small" color="action" />}
+                name={`Topics (${ns.topics.length})`}
+              />
+            }
           >
             {ns.topics.map((t) => (
               <TreeItem
                 key={t.id}
                 itemId={t.id}
-                label={<EntityLabel icon={<TopicRoundedIcon fontSize="small" color="secondary" />} name={t.name} />}
+                label={
+                  <EntityLabel
+                    icon={
+                      <TopicRoundedIcon fontSize="small" color="secondary" />
+                    }
+                    name={t.name}
+                  />
+                }
               >
                 {t.subscriptions.map((s) => (
                   <TreeItem
@@ -120,7 +178,12 @@ export default function NamespaceTree({ namespaces, selectedId, onSelect }: Name
                     itemId={s.id}
                     label={
                       <EntityLabel
-                        icon={<AltRouteRoundedIcon fontSize="small" color="action" />}
+                        icon={
+                          <AltRouteRoundedIcon
+                            fontSize="small"
+                            color="action"
+                          />
+                        }
                         name={s.name}
                         active={s.activeCount}
                         dead={s.deadLetterCount}

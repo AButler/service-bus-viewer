@@ -15,7 +15,13 @@ interface MessageDetailsProps {
   message: ServiceBusMessage | null;
 }
 
-function PropertyRow({ label, value }: { label: string; value: React.ReactNode }) {
+function PropertyRow({
+  label,
+  value,
+}: {
+  label: string;
+  value: React.ReactNode;
+}) {
   return (
     <ListItem disableGutters sx={{ py: 0.5, alignItems: "flex-start" }}>
       <ListItemText
@@ -23,7 +29,11 @@ function PropertyRow({ label, value }: { label: string; value: React.ReactNode }
         secondary={value}
         slotProps={{
           primary: { variant: "caption", color: "text.secondary" },
-          secondary: { variant: "body2", color: "text.primary", sx: { wordBreak: "break-word" } },
+          secondary: {
+            variant: "body2",
+            color: "text.primary",
+            sx: { wordBreak: "break-word" },
+          },
         }}
       />
     </ListItem>
@@ -32,7 +42,11 @@ function PropertyRow({ label, value }: { label: string; value: React.ReactNode }
 
 function SectionTitle({ children }: { children: React.ReactNode }) {
   return (
-    <Typography variant="overline" color="text.secondary" sx={{ letterSpacing: 0.6 }}>
+    <Typography
+      variant="overline"
+      color="text.secondary"
+      sx={{ letterSpacing: 0.6 }}
+    >
       {children}
     </Typography>
   );
@@ -67,7 +81,13 @@ export default function MessageDetails({ message }: MessageDetailsProps) {
         <Typography variant="h5" noWrap>
           {message.subject}
         </Typography>
-        <Chip size="small" label={message.state} color="primary" variant="outlined" sx={{ ml: "auto" }} />
+        <Chip
+          size="small"
+          label={message.state}
+          color="primary"
+          variant="outlined"
+          sx={{ ml: "auto" }}
+        />
       </Box>
       <Typography variant="caption" color="text.secondary">
         {message.messageId}
@@ -84,7 +104,10 @@ export default function MessageDetails({ message }: MessageDetailsProps) {
         <PropertyRow label="Size" value={`${message.size} bytes`} />
         <PropertyRow label="Delivery Count" value={message.deliveryCount} />
         <PropertyRow label="Time To Live" value={message.timeToLive} />
-        <PropertyRow label="Enqueued Time (UTC)" value={new Date(message.enqueuedTime).toLocaleString()} />
+        <PropertyRow
+          label="Enqueued Time (UTC)"
+          value={new Date(message.enqueuedTime).toLocaleString()}
+        />
       </List>
 
       <Divider sx={{ my: 1.5 }} />
