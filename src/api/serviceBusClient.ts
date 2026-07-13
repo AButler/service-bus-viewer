@@ -256,6 +256,27 @@ const bodies = [
   },
   { orderId: "ORD-10433", status: "shipped", trackingNumber: "TRK-556231" },
   { paymentId: "PAY-77213", amount: 42.5, method: "card", approved: true },
+  {
+    orderId: "ORD-90001",
+    customerId: "CUST-42210",
+    currency: "GBP",
+    notes:
+      "Bulk order with expedited shipping and gift wrapping across multiple warehouses.",
+    shippingAddress: {
+      line1: "128 Example Street",
+      line2: "Building C, Floor 4",
+      city: "Manchester",
+      postcode: "M1 2AB",
+      country: "United Kingdom",
+    },
+    items: Array.from({ length: 20 }, (_, i) => ({
+      sku: `SKU-${1000 + i}`,
+      name: `Product number ${i + 1} with a reasonably descriptive name`,
+      quantity: (i % 5) + 1,
+      unitPrice: Number((9.99 + i).toFixed(2)),
+      category: i % 2 === 0 ? "hardware" : "accessories",
+    })),
+  },
 ];
 
 function buildMessage(
@@ -264,7 +285,10 @@ function buildMessage(
   deadLetter: boolean,
 ): ServiceBusReceivedMessage {
   const n = seed * 1000 + index;
-  const enqueued = new Date(Date.UTC(2026, 6, 13, 9, 0, 0) + n * 61_000);
+  // Keep enqueuedTimeUtc always in the past while making it increase with the
+  // sequence number: a larger n means a smaller offset back from "now".
+  const pastWindow = 90 * 24 * 60 * 60 * 1000; // 90 days in ms
+  const enqueued = new Date(Date.now() - Math.round(pastWindow / (n + 1)));
   const timeToLive = 14 * 24 * 60 * 60 * 1000; // 14 days in ms
   const applicationProperties: Record<string, string | number | boolean> = {
     source: "checkout-service",
@@ -277,7 +301,10 @@ function buildMessage(
     messageId: `${n.toString(16).padStart(8, "0")}-${seed}`,
     sequenceNumber: 45000 + n,
     enqueuedSequenceNumber: 45000 + n,
-    subject: subjects[(seed + index) % subjects.length],
+    subject:
+      (seed + index) % 3 === 0
+        ? undefined
+        : subjects[(seed + index) % subjects.length],
     body: bodies[(seed + index) % bodies.length],
     contentType: "application/json",
     correlationId: `corr-${(seed + index) % 7}`,

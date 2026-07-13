@@ -54,6 +54,7 @@ export default function MessageGrid({
         headerName: "Seq #",
         width: 90,
         type: "number",
+        valueFormatter: (value: number) => String(value),
       },
       { field: "messageId", headerName: "Message ID", width: 200 },
       { field: "subject", headerName: "Subject", width: 150 },
