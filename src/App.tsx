@@ -5,7 +5,6 @@ import {
   Divider,
   LinearProgress,
   Paper,
-  Typography,
 } from "@mui/material";
 import type { GridPaginationModel } from "@mui/x-data-grid";
 import { useIsFetching, useQueryClient } from "@tanstack/react-query";
@@ -243,11 +242,6 @@ function App() {
             minHeight: 0,
           }}
         >
-          <Box sx={{ px: 2, py: 1.5, borderBottom: 1, borderColor: "divider" }}>
-            <Typography variant="overline" color="text.secondary">
-              Message Details
-            </Typography>
-          </Box>
           <Box sx={{ flexGrow: 1, minHeight: 0 }}>
             <MessageDetails message={selectedMessage} />
           </Box>
