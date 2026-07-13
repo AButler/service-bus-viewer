@@ -3,7 +3,7 @@ import { formatDateTime } from "./dateTimeFormatter";
 import { formatDuration } from "./durationFormatter";
 import type { PropertyFormatter } from "./types";
 
-export type { PropertyFormatter } from "./types";
+export type { PropertyFormatter, FormatterDetail } from "./types";
 
 // Registry of raw property name -> formatter. Add new entries here to give a
 // property a custom render format.

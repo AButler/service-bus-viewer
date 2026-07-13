@@ -1,8 +1,16 @@
 import { useState } from "react";
-import { Box, Button, Divider, LinearProgress, Paper } from "@mui/material";
+import {
+  Box,
+  Button,
+  Divider,
+  LinearProgress,
+  Paper,
+  Typography,
+} from "@mui/material";
 import type { GridPaginationModel } from "@mui/x-data-grid";
 import { useIsFetching, useQueryClient } from "@tanstack/react-query";
 import AddLinkRoundedIcon from "@mui/icons-material/AddLinkRounded";
+import TouchAppRoundedIcon from "@mui/icons-material/TouchAppRounded";
 import NamespaceTree, { type SelectedEntity } from "./components/NamespaceTree";
 import NamespacesHeader from "./components/NamespacesHeader";
 import MessageGrid from "./components/MessageGrid";
@@ -200,24 +208,46 @@ function App() {
             containerType: "inline-size",
           }}
         >
-          <MessageToolbar
-            entity={selectedEntity}
-            view={messageView}
-            onViewChange={handleViewChange}
-            onRefresh={handleRefreshMessages}
-          />
-          <Box sx={{ flexGrow: 1, minHeight: 0 }}>
-            <MessageGrid
-              rows={rows}
-              rowCount={rowCount}
-              loading={messagesQuery.isFetching}
-              deadLetterView={messageView === "deadletter"}
-              paginationModel={paginationModel}
-              onPaginationModelChange={handlePaginationChange}
-              selectedId={selectedMessage?.messageId ?? null}
-              onSelect={setSelectedMessage}
-            />
-          </Box>
+          {selectedEntity ? (
+            <>
+              <MessageToolbar
+                entity={selectedEntity}
+                view={messageView}
+                onViewChange={handleViewChange}
+                onRefresh={handleRefreshMessages}
+              />
+              <Box sx={{ flexGrow: 1, minHeight: 0 }}>
+                <MessageGrid
+                  rows={rows}
+                  rowCount={rowCount}
+                  loading={messagesQuery.isFetching}
+                  deadLetterView={messageView === "deadletter"}
+                  paginationModel={paginationModel}
+                  onPaginationModelChange={handlePaginationChange}
+                  selectedId={selectedMessage?.messageId ?? null}
+                  onSelect={setSelectedMessage}
+                />
+              </Box>
+            </>
+          ) : (
+            <Box
+              sx={{
+                flexGrow: 1,
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: 1,
+                color: "text.secondary",
+                p: 3,
+              }}
+            >
+              <TouchAppRoundedIcon fontSize="large" />
+              <Typography variant="body2" align="center">
+                Select a queue or subscription to view its messages.
+              </Typography>
+            </Box>
+          )}
         </Box>
 
         <ResizeHandle

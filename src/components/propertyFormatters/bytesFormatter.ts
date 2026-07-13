@@ -1,7 +1,10 @@
 import type { PropertyFormatter } from "./types";
 
-/** Render a byte count as "X bytes" or "X bytes (Y KB/MB/...)". */
-export const formatBytes: PropertyFormatter = (value) => {
+/**
+ * Render a byte count. "full" adds the raw byte count with the largest unit in
+ * parentheses; "simple" renders only the largest-unit form.
+ */
+export const formatBytes: PropertyFormatter = (value, detail) => {
   const bytes = value as number;
   const withSeparators = bytes.toLocaleString();
   if (bytes < 1024) {
@@ -15,5 +18,6 @@ export const formatBytes: PropertyFormatter = (value) => {
     unitIndex += 1;
   }
   const rounded = scaled.toFixed(2).replace(/\.?0+$/, "");
-  return `${withSeparators} bytes (${rounded} ${units[unitIndex]})`;
+  const human = `${rounded} ${units[unitIndex]}`;
+  return detail === "simple" ? human : `${withSeparators} bytes (${human})`;
 };

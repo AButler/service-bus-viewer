@@ -7,6 +7,7 @@ import {
 } from "@mui/x-data-grid";
 import { Box, Chip } from "@mui/material";
 import type { ServiceBusReceivedMessage } from "../api/types";
+import { getPropertyFormatter } from "./propertyFormatters";
 
 interface MessageGridProps {
   rows: ServiceBusReceivedMessage[];
@@ -27,11 +28,6 @@ const stateColor: Record<
   deferred: "warning",
   scheduled: "info",
 };
-
-function formatBytes(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`;
-  return `${(bytes / 1024).toFixed(1)} KB`;
-}
 
 function bodyBytes(body: unknown): number {
   return JSON.stringify(body ?? "").length;
@@ -54,7 +50,8 @@ export default function MessageGrid({
         headerName: "Seq #",
         width: 90,
         type: "number",
-        valueFormatter: (value: number) => String(value),
+        valueFormatter: (value: number) =>
+          getPropertyFormatter("sequenceNumber")(value, "simple"),
       },
       { field: "messageId", headerName: "Message ID", width: 200 },
       { field: "subject", headerName: "Subject", width: 150 },
@@ -102,10 +99,11 @@ export default function MessageGrid({
       {
         field: "size",
         headerName: "Size",
-        width: 90,
+        width: 100,
         type: "number",
         valueGetter: (_value, row) => bodyBytes(row.body),
-        valueFormatter: (value: number) => formatBytes(value),
+        valueFormatter: (value: number) =>
+          getPropertyFormatter("size")(value, "simple"),
       },
       {
         field: "deliveryCount",
@@ -116,8 +114,9 @@ export default function MessageGrid({
       {
         field: "enqueuedTimeUtc",
         headerName: "Enqueued (UTC)",
-        width: 190,
-        valueFormatter: (value: Date) => new Date(value).toLocaleString(),
+        width: 200,
+        valueFormatter: (value: Date) =>
+          getPropertyFormatter("enqueuedTimeUtc")(value, "simple"),
       },
     ],
     [deadLetterView],

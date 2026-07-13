@@ -146,6 +146,7 @@ function PropertyRow({
 }
 
 const SYSTEM_PROPERTY_NAMES = [
+  "messageId",
   "sequenceNumber",
   "correlationId",
   "sessionId",
@@ -164,6 +165,7 @@ const DEAD_LETTER_PROPERTY_NAMES = [
 
 /** Display-name overrides for known raw property names. */
 const propertyLabels: Record<string, string> = {
+  messageId: "Message ID",
   sequenceNumber: "Sequence Number",
   correlationId: "Correlation ID",
   sessionId: "Session ID",
@@ -188,7 +190,7 @@ function getRawPropertyValue(
 function renderPropertyRow(message: ServiceBusReceivedMessage, name: string) {
   const raw = getRawPropertyValue(message, name);
   const hasValue = raw !== undefined && raw !== null;
-  const display = hasValue ? getPropertyFormatter(name)(raw) : "\u2014";
+  const display = hasValue ? getPropertyFormatter(name)(raw, "full") : "\u2014";
   return (
     <PropertyRow
       key={name}
