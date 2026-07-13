@@ -93,7 +93,8 @@ export default function MessageToolbar({
             "&.Mui-selected": {
               color: "primary.main",
               borderColor: "primary.main",
-              backgroundColor: (theme) => alpha(theme.palette.primary.main, 0.12),
+              backgroundColor: (theme) =>
+                alpha(theme.palette.primary.main, 0.12),
               "&:hover": {
                 backgroundColor: (theme) =>
                   alpha(theme.palette.primary.main, 0.2),
@@ -114,7 +115,8 @@ export default function MessageToolbar({
               borderColor: "error.main",
               backgroundColor: (theme) => alpha(theme.palette.error.main, 0.12),
               "&:hover": {
-                backgroundColor: (theme) => alpha(theme.palette.error.main, 0.2),
+                backgroundColor: (theme) =>
+                  alpha(theme.palette.error.main, 0.2),
               },
             },
           }}
