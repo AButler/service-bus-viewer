@@ -1,191 +1,39 @@
+import { useState } from "react";
 import {
-  Accordion,
-  AccordionDetails,
-  AccordionSummary,
   Box,
   Chip,
   IconButton,
   List,
-  ListItem,
-  ListItemText,
   Paper,
   Tooltip,
   Typography,
 } from "@mui/material";
 import DescriptionRoundedIcon from "@mui/icons-material/DescriptionRounded";
-import ExpandMoreRoundedIcon from "@mui/icons-material/ExpandMoreRounded";
-import ContentCopyRoundedIcon from "@mui/icons-material/ContentCopyRounded";
-import CheckRoundedIcon from "@mui/icons-material/CheckRounded";
 import UnfoldMoreRoundedIcon from "@mui/icons-material/UnfoldMoreRounded";
 import UnfoldLessRoundedIcon from "@mui/icons-material/UnfoldLessRounded";
-import { useState } from "react";
 import type { ServiceBusReceivedMessage } from "../api/types";
 import { getBodyRenderer } from "./bodyRenderers";
 import { getPropertyFormatter } from "./propertyFormatters";
-import { copyText } from "../lib/clipboard";
+import PropertyRow from "./messageDetails/PropertyRow";
+import Section from "./messageDetails/Section";
+import {
+  DEAD_LETTER_PROPERTY_NAMES,
+  SYSTEM_PROPERTY_NAMES,
+  bodyToText,
+  getRawPropertyValue,
+  propertyLabels,
+} from "./messageDetails/properties";
 
 interface MessageDetailsProps {
   message: ServiceBusReceivedMessage | null;
 }
 
-function bodyBytes(body: unknown): number {
-  return JSON.stringify(body ?? "").length;
-}
-
-function bodyToText(body: unknown): string {
-  if (typeof body === "string") return body;
-  return JSON.stringify(body, null, 2);
-}
-
-function CopyButton({
-  value,
-  label,
-  hovered,
-  edge,
-}: {
-  value: string;
-  label: string;
-  hovered: boolean;
-  edge?: "start" | "end" | false;
-}) {
-  const [copied, setCopied] = useState(false);
-
-  const handleCopy = async (event: React.MouseEvent) => {
-    event.stopPropagation();
-    try {
-      await copyText(value);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 1200);
-    } catch {
-      // Ignore clipboard failures (e.g. permission denied).
-    }
-  };
-
-  return (
-    <Tooltip title={copied ? "Copied" : "Copy"}>
-      <IconButton
-        size="small"
-        edge={edge}
-        aria-label={label}
-        onClick={handleCopy}
-        sx={{ position: "relative" }}
-      >
-        <ContentCopyRoundedIcon
-          fontSize="inherit"
-          sx={{
-            opacity: hovered && !copied ? 1 : 0,
-            transition: "opacity 0.15s",
-          }}
-        />
-        <CheckRoundedIcon
-          color="success"
-          fontSize="inherit"
-          sx={{
-            position: "absolute",
-            opacity: copied ? 1 : 0,
-            transition: "opacity 0.4s",
-          }}
-        />
-      </IconButton>
-    </Tooltip>
-  );
-}
-
-function PropertyRow({
-  label,
-  value,
-  copyValue,
-  rawName,
-}: {
-  label: string;
-  value: React.ReactNode;
-  copyValue?: string;
-  rawName?: string;
-}) {
-  const [hovered, setHovered] = useState(false);
-
-  return (
-    <ListItem
-      disableGutters
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
-      sx={{ py: 0.5, alignItems: "flex-start" }}
-      secondaryAction={
-        copyValue !== undefined ? (
-          <CopyButton
-            value={copyValue}
-            label={`Copy ${label}`}
-            hovered={hovered}
-            edge="end"
-          />
-        ) : undefined
-      }
-    >
-      <ListItemText
-        primary={
-          rawName !== undefined ? (
-            <Tooltip title={rawName}>
-              <Box component="span">{label}</Box>
-            </Tooltip>
-          ) : (
-            label
-          )
-        }
-        secondary={value}
-        slotProps={{
-          primary: { variant: "caption", color: "text.secondary" },
-          secondary: {
-            variant: "body2",
-            color: "text.primary",
-            sx: { wordBreak: "break-word" },
-          },
-        }}
-      />
-    </ListItem>
-  );
-}
-
-const SYSTEM_PROPERTY_NAMES = [
-  "messageId",
-  "sequenceNumber",
-  "correlationId",
-  "sessionId",
-  "contentType",
-  "size",
-  "deliveryCount",
-  "timeToLive",
-  "enqueuedTimeUtc",
-] as const;
-
-const DEAD_LETTER_PROPERTY_NAMES = [
-  "deadLetterReason",
-  "deadLetterErrorDescription",
-  "deadLetterSource",
-] as const;
-
-/** Display-name overrides for known raw property names. */
-const propertyLabels: Record<string, string> = {
-  messageId: "Message ID",
-  sequenceNumber: "Sequence Number",
-  correlationId: "Correlation ID",
-  sessionId: "Session ID",
-  contentType: "Content Type",
-  size: "Size",
-  deliveryCount: "Delivery Count",
-  timeToLive: "Time To Live",
-  enqueuedTimeUtc: "Enqueued Time (UTC)",
-  deadLetterReason: "Reason",
-  deadLetterErrorDescription: "Error Description",
-  deadLetterSource: "Source",
-};
-
-function getRawPropertyValue(
-  message: ServiceBusReceivedMessage,
-  name: string,
-): unknown {
-  if (name === "size") return bodyBytes(message.body);
-  return (message as unknown as Record<string, unknown>)[name];
-}
+const SECTION_TITLES = [
+  "Body",
+  "Dead-letter",
+  "Application Properties",
+  "System Properties",
+];
 
 function renderPropertyRow(message: ServiceBusReceivedMessage, name: string) {
   const raw = getRawPropertyValue(message, name);
@@ -199,76 +47,6 @@ function renderPropertyRow(message: ServiceBusReceivedMessage, name: string) {
       value={display}
       copyValue={hasValue ? display : undefined}
     />
-  );
-}
-
-function SectionTitle({ children }: { children: React.ReactNode }) {
-  return (
-    <Typography
-      variant="overline"
-      color="text.secondary"
-      sx={{ letterSpacing: 0.6 }}
-    >
-      {children}
-    </Typography>
-  );
-}
-
-function Section({
-  title,
-  expanded,
-  onToggle,
-  copyValue,
-  children,
-}: {
-  title: string;
-  expanded: boolean;
-  onToggle: () => void;
-  copyValue?: string;
-  children: React.ReactNode;
-}) {
-  const [hovered, setHovered] = useState(false);
-
-  return (
-    <Accordion
-      expanded={expanded}
-      onChange={onToggle}
-      disableGutters
-      square
-      elevation={0}
-      sx={{
-        bgcolor: "transparent",
-        borderBottom: 1,
-        borderColor: "divider",
-        "&:first-of-type": {
-          mt: 1.5,
-        },
-        "&:before": { display: "none" },
-      }}
-    >
-      <AccordionSummary
-        expandIcon={<ExpandMoreRoundedIcon fontSize="small" />}
-        onMouseEnter={() => setHovered(true)}
-        onMouseLeave={() => setHovered(false)}
-        sx={{
-          px: 0,
-          minHeight: 0,
-          "& .MuiAccordionSummary-content": { my: 1, alignItems: "center" },
-        }}
-      >
-        <SectionTitle>{title}</SectionTitle>
-        {copyValue !== undefined && (
-          <Box sx={{ ml: "auto", mr: 1, display: "inline-flex" }}>
-            <CopyButton
-              value={copyValue}
-              label={`Copy ${title}`}
-              hovered={hovered}
-            />
-          </Box>
-        )}
-      </AccordionSummary>
-      <AccordionDetails sx={{ px: 0, pt: 0 }}>{children}</AccordionDetails>
-    </Accordion>
   );
 }
 
@@ -287,15 +65,7 @@ export default function MessageDetails({ message }: MessageDetailsProps) {
       return next;
     });
   const expandAll = () => setCollapsed(new Set());
-  const collapseAll = () =>
-    setCollapsed(
-      new Set([
-        "Body",
-        "Dead-letter",
-        "Application Properties",
-        "System Properties",
-      ]),
-    );
+  const collapseAll = () => setCollapsed(new Set(SECTION_TITLES));
 
   return (
     <Box

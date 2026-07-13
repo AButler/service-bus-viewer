@@ -1,27 +1,15 @@
 import { useEffect, useMemo, useState } from "react";
-import {
-  Box,
-  Button,
-  Divider,
-  LinearProgress,
-  Paper,
-  Typography,
-} from "@mui/material";
+import { Box, Paper } from "@mui/material";
 import type { GridPaginationModel } from "@mui/x-data-grid";
 import { useIsFetching, useQueryClient } from "@tanstack/react-query";
 import { useLocation, useNavigate } from "react-router-dom";
-import AddLinkRoundedIcon from "@mui/icons-material/AddLinkRounded";
-import TouchAppRoundedIcon from "@mui/icons-material/TouchAppRounded";
-import NamespaceTree, {
-  deriveNamespaceHost,
-  type SelectedEntity,
-} from "./components/NamespaceTree";
-import NamespacesHeader from "./components/NamespacesHeader";
-import MessageGrid from "./components/MessageGrid";
+import type { SelectedEntity } from "./components/NamespaceTree";
+import type { MessageView } from "./components/MessageToolbar";
 import MessageDetails from "./components/MessageDetails";
 import ResizeHandle from "./components/ResizeHandle";
 import TopBar from "./components/TopBar";
-import MessageToolbar, { type MessageView } from "./components/MessageToolbar";
+import NamespacesPanel from "./components/NamespacesPanel";
+import MessagesPanel from "./components/MessagesPanel";
 import {
   useMessages,
   useNamespaces,
@@ -38,6 +26,7 @@ import {
   parseSelectionPath,
   selectionAncestorItemIds,
 } from "./lib/selectionRoute";
+import { deriveNamespaceHost } from "./lib/namespace";
 
 const EMPTY_COUNTS: MessageCountDetails = {
   activeMessageCount: 0,
@@ -89,7 +78,9 @@ function App() {
     selection?.kind === "queue",
   );
   const subscriptionTopic =
-    selection?.kind === "subscription" ? selection.entityPath.split("/")[0] : "";
+    selection?.kind === "subscription"
+      ? selection.entityPath.split("/")[0]
+      : "";
   const subscriptionsQuery = useSubscriptions(
     selection?.namespaceName ?? "",
     subscriptionTopic,
@@ -153,9 +144,8 @@ function App() {
   const selectedMessage = useMemo<ServiceBusReceivedMessage | null>(() => {
     if (!selection?.sequenceNumber) return null;
     return (
-      rows.find(
-        (m) => String(m.sequenceNumber) === selection.sequenceNumber,
-      ) ?? null
+      rows.find((m) => String(m.sequenceNumber) === selection.sequenceNumber) ??
+      null
     );
   }, [selection?.sequenceNumber, rows]);
 
@@ -285,74 +275,17 @@ function App() {
       <TopBar />
 
       <Box sx={{ display: "flex", flexGrow: 1, minHeight: 0 }}>
-        {/* Left: namespace / entity tree */}
-        <Paper
-          square
-          elevation={0}
-          sx={{
-            width: leftWidth,
-            flexShrink: 0,
-            display: "flex",
-            flexDirection: "column",
-            minHeight: 0,
-          }}
-        >
-          <Box sx={{ position: "relative" }}>
-            <NamespacesHeader
-              onRefresh={handleRefreshNamespaces}
-              onCollapseAll={() => setExpandedItems([])}
-            />
-            <Divider />
-            {isTreeFetching > 0 && (
-              <LinearProgress
-                sx={{
-                  position: "absolute",
-                  left: 0,
-                  right: 0,
-                  bottom: 0,
-                  height: 2,
-                }}
-              />
-            )}
-          </Box>
-          <Box
-            sx={{
-              flexGrow: 1,
-              minHeight: 0,
-              overflowY: "auto",
-              display: "flex",
-              flexDirection: "column",
-            }}
-          >
-            <NamespaceTree
-              selectedId={selectedEntity?.itemId ?? null}
-              onSelect={handleEntitySelect}
-              expandedItems={expandedItems}
-              setExpandedItems={setExpandedItems}
-            />
-            {hasNoNamespaces && (
-              <Box sx={{ px: 1.5, pt: 0.5, pb: 1.5 }}>
-                <Button
-                  fullWidth
-                  variant="outlined"
-                  startIcon={<AddLinkRoundedIcon />}
-                  sx={{
-                    color: "text.secondary",
-                    borderColor: "divider",
-                    justifyContent: "flex-start",
-                    fontWeight: 400,
-                    "&:hover": {
-                      borderColor: "text.secondary",
-                      backgroundColor: "action.hover",
-                    },
-                  }}
-                >
-                  Connect namespace
-                </Button>
-              </Box>
-            )}
-          </Box>
-        </Paper>
+        <NamespacesPanel
+          width={leftWidth}
+          selectedId={selectedEntity?.itemId ?? null}
+          onSelect={handleEntitySelect}
+          expandedItems={expandedItems}
+          setExpandedItems={setExpandedItems}
+          loading={isTreeFetching > 0}
+          showConnect={hasNoNamespaces}
+          onRefresh={handleRefreshNamespaces}
+          onCollapseAll={() => setExpandedItems([])}
+        />
 
         <ResizeHandle
           ariaLabel="Resize namespaces panel"
@@ -362,59 +295,19 @@ function App() {
           onChange={setLeftWidth}
         />
 
-        {/* Middle: message grid */}
-        <Box
-          sx={{
-            flexGrow: 1,
-            display: "flex",
-            flexDirection: "column",
-            minWidth: 0,
-            minHeight: 0,
-            overflow: "hidden",
-            containerType: "inline-size",
-          }}
-        >
-          {selectedEntity ? (
-            <>
-              <MessageToolbar
-                entity={selectedEntity}
-                view={messageView}
-                onViewChange={handleViewChange}
-                onRefresh={handleRefreshMessages}
-              />
-              <Box sx={{ flexGrow: 1, minHeight: 0 }}>
-                <MessageGrid
-                  rows={rows}
-                  rowCount={rowCount}
-                  loading={messagesQuery.isFetching}
-                  deadLetterView={messageView === "deadletter"}
-                  paginationModel={paginationModel}
-                  onPaginationModelChange={handlePaginationChange}
-                  selectedId={selection?.sequenceNumber ?? null}
-                  onSelect={handleMessageSelect}
-                />
-              </Box>
-            </>
-          ) : (
-            <Box
-              sx={{
-                flexGrow: 1,
-                display: "flex",
-                flexDirection: "column",
-                alignItems: "center",
-                justifyContent: "center",
-                gap: 1,
-                color: "text.secondary",
-                p: 3,
-              }}
-            >
-              <TouchAppRoundedIcon fontSize="large" />
-              <Typography variant="body2" align="center">
-                Select a queue or subscription to view its messages.
-              </Typography>
-            </Box>
-          )}
-        </Box>
+        <MessagesPanel
+          entity={selectedEntity}
+          view={messageView}
+          rows={rows}
+          rowCount={rowCount}
+          loading={messagesQuery.isFetching}
+          paginationModel={paginationModel}
+          selectedId={selection?.sequenceNumber ?? null}
+          onViewChange={handleViewChange}
+          onRefresh={handleRefreshMessages}
+          onPaginationModelChange={handlePaginationChange}
+          onSelect={handleMessageSelect}
+        />
 
         <ResizeHandle
           ariaLabel="Resize details panel"
