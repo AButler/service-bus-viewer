@@ -1,14 +1,26 @@
 import { useEffect, useState } from "react";
 import { SimpleTreeView } from "@mui/x-tree-view/SimpleTreeView";
 import { TreeItem } from "@mui/x-tree-view/TreeItem";
-import { Box, Chip, CircularProgress, Typography } from "@mui/material";
+import {
+  Badge,
+  Box,
+  Chip,
+  CircularProgress,
+  IconButton,
+  ListItemIcon,
+  ListItemText,
+  Menu,
+  MenuItem,
+  Typography,
+} from "@mui/material";
 import { useQueryClient } from "@tanstack/react-query";
 import CloudQueueRoundedIcon from "@mui/icons-material/CloudQueueRounded";
-import CircleIcon from "@mui/icons-material/Circle";
 import InboxRoundedIcon from "@mui/icons-material/InboxRounded";
 import TopicRoundedIcon from "@mui/icons-material/TopicRounded";
 import FolderRoundedIcon from "@mui/icons-material/FolderRounded";
 import AltRouteRoundedIcon from "@mui/icons-material/AltRouteRounded";
+import MoreVertRoundedIcon from "@mui/icons-material/MoreVertRounded";
+import LinkOffRoundedIcon from "@mui/icons-material/LinkOffRounded";
 import {
   useNamespaces,
   useQueues,
@@ -35,6 +47,8 @@ export interface SelectedEntity {
 interface NamespaceTreeProps {
   selectedId: string | null;
   onSelect: (entity: SelectedEntity) => void;
+  expandedItems: string[];
+  setExpandedItems: React.Dispatch<React.SetStateAction<string[]>>;
 }
 
 // --- Small presentational helpers --------------------------------------------
@@ -70,12 +84,14 @@ function EntityLabel({
   name,
   active,
   dead,
+  count,
   loading,
 }: {
   icon: React.ReactNode;
   name: string;
   active?: number;
   dead?: number;
+  count?: number;
   loading?: boolean;
 }) {
   return (
@@ -86,7 +102,19 @@ function EntityLabel({
       <Typography variant="body2" noWrap sx={{ flexShrink: 1, minWidth: 0 }}>
         {name}
       </Typography>
-      {loading && <CircularProgress size={13} sx={{ ml: "auto" }} />}
+      {loading && <CircularProgress size={13} />}
+      {!loading && count !== undefined && (
+        <Chip
+          size="small"
+          label={count}
+          variant="outlined"
+          sx={{
+            height: 18,
+            fontSize: "0.65rem",
+            "& .MuiChip-label": { px: 0.75 },
+          }}
+        />
+      )}
       {!loading && active !== undefined && dead !== undefined && (
         <CountBadge active={active} dead={dead} />
       )}
@@ -246,7 +274,8 @@ function NamespaceChildren({
         label={
           <EntityLabel
             icon={<FolderRoundedIcon fontSize="small" color="action" />}
-            name={queues.data ? `Queues (${queues.data.length})` : "Queues"}
+            name="Queues"
+            count={queues.data?.length}
             loading={queues.isPending}
           />
         }
@@ -267,7 +296,8 @@ function NamespaceChildren({
         label={
           <EntityLabel
             icon={<FolderRoundedIcon fontSize="small" color="action" />}
-            name={topics.data ? `Topics (${topics.data.length})` : "Topics"}
+            name="Topics"
+            count={topics.data?.length}
             loading={topics.isPending}
           />
         }
@@ -300,9 +330,13 @@ const namespaceStatusColor: Record<string, "success" | "warning" | "error"> = {
 function NamespaceItem({
   namespace,
   expandedItems,
+  menuOpen,
+  onOpenMenu,
 }: {
   namespace: SBNamespace;
   expandedItems: string[];
+  menuOpen: boolean;
+  onOpenMenu: (anchor: HTMLElement, namespaceName: string) => void;
 }) {
   const itemId = `namespace:${namespace.name}`;
   const isExpanded = expandedItems.includes(itemId);
@@ -314,8 +348,25 @@ function NamespaceItem({
     <TreeItem
       itemId={itemId}
       label={
-        <Box sx={{ display: "flex", alignItems: "center", gap: 1, py: 0.5 }}>
-          <CloudQueueRoundedIcon fontSize="small" color="action" />
+        <Box
+          sx={{
+            display: "flex",
+            alignItems: "center",
+            gap: 1,
+            py: 0.5,
+            "&:hover .namespace-menu-button": { display: "inline-flex" },
+          }}
+        >
+          <Badge
+            variant="dot"
+            overlap="circular"
+            anchorOrigin={{ vertical: "top", horizontal: "right" }}
+            color={
+              namespaceStatusColor[namespace.properties.status] ?? "warning"
+            }
+          >
+            <CloudQueueRoundedIcon fontSize="small" color="action" />
+          </Badge>
           <Box sx={{ minWidth: 0 }}>
             <Typography variant="subtitle2" noWrap>
               {namespace.name}
@@ -329,12 +380,24 @@ function NamespaceItem({
               {host}
             </Typography>
           </Box>
-          <CircleIcon
-            sx={{ ml: "auto", fontSize: 10 }}
-            color={
-              namespaceStatusColor[namespace.properties.status] ?? "warning"
-            }
-          />
+          <IconButton
+            className="namespace-menu-button"
+            size="small"
+            aria-label={`${namespace.name} menu`}
+            aria-haspopup="true"
+            aria-expanded={menuOpen ? "true" : undefined}
+            onMouseDown={(event) => event.stopPropagation()}
+            onClick={(event) => {
+              event.stopPropagation();
+              onOpenMenu(event.currentTarget, namespace.name);
+            }}
+            sx={{
+              ml: "auto",
+              display: menuOpen ? "inline-flex" : "none",
+            }}
+          >
+            <MoreVertRoundedIcon fontSize="small" />
+          </IconButton>
         </Box>
       }
     >
@@ -409,10 +472,11 @@ function useResolveSelection() {
 export default function NamespaceTree({
   selectedId,
   onSelect,
+  expandedItems,
+  setExpandedItems,
 }: NamespaceTreeProps) {
   const namespaces = useNamespaces();
   const resolveSelection = useResolveSelection();
-  const [expandedItems, setExpandedItems] = useState<string[]>([]);
 
   // Auto-expand the first namespace (and its groups) once loaded.
   const firstNamespace = namespaces.data?.[0]?.name;
@@ -434,16 +498,19 @@ export default function NamespaceTree({
     _event: React.SyntheticEvent | null,
     itemIds: string[],
   ) => {
-    // Keep the Queues/Topics folders open whenever their namespace is open.
-    const next = new Set(itemIds);
-    for (const id of itemIds) {
-      if (id.startsWith("namespace:")) {
-        const name = id.slice("namespace:".length);
-        next.add(`group:${name}:queues`);
-        next.add(`group:${name}:topics`);
-      }
-    }
-    setExpandedItems([...next]);
+    setExpandedItems(itemIds);
+  };
+
+  // The namespace context menu is rendered here (outside any TreeItem) so its
+  // clicks don't bubble through the React tree to the item's expansion handler.
+  const [namespaceMenu, setNamespaceMenu] = useState<{
+    anchorEl: HTMLElement;
+    namespaceName: string;
+  } | null>(null);
+
+  const handleDisconnect = () => {
+    setNamespaceMenu(null);
+    // TODO: disconnect the namespace.
   };
 
   if (namespaces.isPending) {
@@ -458,24 +525,44 @@ export default function NamespaceTree({
   }
 
   return (
-    <SimpleTreeView
-      selectedItems={selectedId}
-      expandedItems={expandedItems}
-      onExpandedItemsChange={handleExpandedItemsChange}
-      onSelectedItemsChange={(_event, itemId) => {
-        if (!itemId) return;
-        const entity = resolveSelection(itemId);
-        if (entity) onSelect(entity);
-      }}
-      sx={{ px: 1, py: 1, overflowY: "auto", flexGrow: 1 }}
-    >
-      {namespaces.data?.map((ns) => (
-        <NamespaceItem
-          key={ns.id}
-          namespace={ns}
-          expandedItems={expandedItems}
-        />
-      ))}
-    </SimpleTreeView>
+    <>
+      <SimpleTreeView
+        selectedItems={selectedId}
+        expandedItems={expandedItems}
+        onExpandedItemsChange={handleExpandedItemsChange}
+        onSelectedItemsChange={(_event, itemId) => {
+          if (!itemId) return;
+          const entity = resolveSelection(itemId);
+          if (entity) onSelect(entity);
+        }}
+        sx={{ px: 1, py: 1 }}
+      >
+        {namespaces.data?.map((ns) => (
+          <NamespaceItem
+            key={ns.id}
+            namespace={ns}
+            expandedItems={expandedItems}
+            menuOpen={namespaceMenu?.namespaceName === ns.name}
+            onOpenMenu={(anchorEl, namespaceName) =>
+              setNamespaceMenu({ anchorEl, namespaceName })
+            }
+          />
+        ))}
+      </SimpleTreeView>
+      <Menu
+        anchorEl={namespaceMenu?.anchorEl ?? null}
+        open={Boolean(namespaceMenu)}
+        onClose={() => setNamespaceMenu(null)}
+        anchorOrigin={{ vertical: "bottom", horizontal: "right" }}
+        transformOrigin={{ vertical: "top", horizontal: "right" }}
+      >
+        <MenuItem onClick={handleDisconnect}>
+          <ListItemIcon>
+            <LinkOffRoundedIcon fontSize="small" />
+          </ListItemIcon>
+          <ListItemText>Disconnect namespace</ListItemText>
+        </MenuItem>
+      </Menu>
+    </>
   );
 }

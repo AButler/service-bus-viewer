@@ -87,6 +87,7 @@ export const theme = createTheme({
     body1: { fontSize: "0.875rem" },
     body2: { fontSize: "0.8125rem" },
     caption: { fontSize: "0.75rem", fontWeight: 400 },
+    overline: { fontSize: "0.8125rem", textTransform: "none" },
     button: { textTransform: "none", fontWeight: 600 },
   },
   components: {

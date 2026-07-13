@@ -148,6 +148,7 @@ export default function MessageGrid({
           border: "none",
           "& .MuiDataGrid-row": { cursor: "pointer" },
           "& .MuiDataGrid-columnHeaders": { fontWeight: 600 },
+          "& .MuiLinearProgress-root": { height: 2 },
         }}
       />
     </Box>

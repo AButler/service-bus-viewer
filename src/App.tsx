@@ -1,33 +1,23 @@
 import { useState } from "react";
 import {
-  AppBar,
   Box,
   Button,
-  Chip,
   Divider,
-  IconButton,
+  LinearProgress,
   Paper,
-  ToggleButton,
-  ToggleButtonGroup,
-  Toolbar,
-  Tooltip,
   Typography,
 } from "@mui/material";
-import { alpha, useColorScheme } from "@mui/material/styles";
-import { useQueryClient } from "@tanstack/react-query";
 import type { GridPaginationModel } from "@mui/x-data-grid";
-import HubRoundedIcon from "@mui/icons-material/HubRounded";
+import { useIsFetching, useQueryClient } from "@tanstack/react-query";
 import AddLinkRoundedIcon from "@mui/icons-material/AddLinkRounded";
-import RefreshRoundedIcon from "@mui/icons-material/RefreshRounded";
-import LightModeRoundedIcon from "@mui/icons-material/LightModeRounded";
-import DarkModeRoundedIcon from "@mui/icons-material/DarkModeRounded";
-import InboxRoundedIcon from "@mui/icons-material/InboxRounded";
-import ReportProblemRoundedIcon from "@mui/icons-material/ReportProblemRounded";
 import NamespaceTree, { type SelectedEntity } from "./components/NamespaceTree";
+import NamespacesHeader from "./components/NamespacesHeader";
 import MessageGrid from "./components/MessageGrid";
 import MessageDetails from "./components/MessageDetails";
 import ResizeHandle from "./components/ResizeHandle";
-import { useMessages } from "./hooks/useServiceBus";
+import TopBar from "./components/TopBar";
+import MessageToolbar, { type MessageView } from "./components/MessageToolbar";
+import { useMessages, useNamespaces } from "./hooks/useServiceBus";
 import type { ServiceBusReceivedMessage } from "./api/types";
 
 const DEFAULT_LEFT_WIDTH = 320;
@@ -38,43 +28,11 @@ const MIN_RIGHT_WIDTH = 300;
 const MAX_RIGHT_WIDTH = 640;
 const DEFAULT_PAGE_SIZE = 25;
 
-function ColorModeToggle() {
-  const { mode, systemMode, setMode } = useColorScheme();
-
-  // `mode` is undefined until the provider mounts on the client.
-  if (!mode) {
-    return <IconButton color="inherit" size="small" disabled />;
-  }
-
-  const resolvedMode = mode === "system" ? systemMode : mode;
-  const isDark = resolvedMode === "dark";
-
-  return (
-    <Tooltip title={isDark ? "Switch to light mode" : "Switch to dark mode"}>
-      <IconButton
-        color="inherit"
-        size="small"
-        onClick={() => setMode(isDark ? "light" : "dark")}
-        aria-label="Toggle color mode"
-      >
-        {isDark ? (
-          <LightModeRoundedIcon fontSize="small" />
-        ) : (
-          <DarkModeRoundedIcon fontSize="small" />
-        )}
-      </IconButton>
-    </Tooltip>
-  );
-}
-
 function App() {
-  const queryClient = useQueryClient();
   const [selectedEntity, setSelectedEntity] = useState<SelectedEntity | null>(
     null,
   );
-  const [messageView, setMessageView] = useState<"active" | "deadletter">(
-    "active",
-  );
+  const [messageView, setMessageView] = useState<MessageView>("active");
   const [selectedMessage, setSelectedMessage] =
     useState<ServiceBusReceivedMessage | null>(null);
   const [paginationModel, setPaginationModel] = useState<GridPaginationModel>({
@@ -83,6 +41,15 @@ function App() {
   });
   const [leftWidth, setLeftWidth] = useState(DEFAULT_LEFT_WIDTH);
   const [rightWidth, setRightWidth] = useState(DEFAULT_RIGHT_WIDTH);
+  const [expandedItems, setExpandedItems] = useState<string[]>([]);
+
+  const queryClient = useQueryClient();
+  const isTreeFetching = useIsFetching({
+    predicate: (query) =>
+      ["namespaces", "queues", "topics", "subscriptions"].includes(
+        query.queryKey[0] as string,
+      ),
+  });
 
   const messagesQuery = useMessages(
     selectedEntity
@@ -98,9 +65,19 @@ function App() {
 
   const rows = messagesQuery.data?.value ?? [];
   const rowCount = messagesQuery.data?.totalCount ?? 0;
-  const activeCount = selectedEntity?.countDetails.activeMessageCount ?? 0;
-  const deadLetterCount =
-    selectedEntity?.countDetails.deadLetterMessageCount ?? 0;
+
+  const namespacesQuery = useNamespaces();
+  const hasNoNamespaces =
+    namespacesQuery.isSuccess && namespacesQuery.data.length === 0;
+
+  const handleRefreshNamespaces = () => {
+    queryClient.invalidateQueries({
+      predicate: (query) =>
+        ["namespaces", "queues", "topics", "subscriptions"].includes(
+          query.queryKey[0] as string,
+        ),
+    });
+  };
 
   const handleEntitySelect = (entity: SelectedEntity) => {
     setSelectedEntity(entity);
@@ -111,7 +88,7 @@ function App() {
 
   const handleViewChange = (
     _event: React.MouseEvent<HTMLElement>,
-    value: "active" | "deadletter" | null,
+    value: MessageView | null,
   ) => {
     if (value !== null) {
       setMessageView(value);
@@ -134,31 +111,7 @@ function App() {
         bgcolor: "background.default",
       }}
     >
-      <AppBar position="static">
-        <Toolbar variant="dense" sx={{ gap: 1 }}>
-          <HubRoundedIcon color="primary" />
-          <Typography variant="h6" sx={{ fontWeight: 700 }}>
-            Service Bus Viewer
-          </Typography>
-          <Box sx={{ flexGrow: 1 }} />
-          <ColorModeToggle />
-          <Button
-            size="small"
-            startIcon={<RefreshRoundedIcon />}
-            color="inherit"
-            onClick={() => queryClient.invalidateQueries()}
-          >
-            Refresh
-          </Button>
-          <Button
-            size="small"
-            variant="contained"
-            startIcon={<AddLinkRoundedIcon />}
-          >
-            Connect namespace
-          </Button>
-        </Toolbar>
-      </AppBar>
+      <TopBar />
 
       <Box sx={{ display: "flex", flexGrow: 1, minHeight: 0 }}>
         {/* Left: namespace / entity tree */}
@@ -173,16 +126,61 @@ function App() {
             minHeight: 0,
           }}
         >
-          <Box sx={{ px: 2, py: 1.5 }}>
-            <Typography variant="overline" color="text.secondary">
-              Namespaces
-            </Typography>
+          <Box sx={{ position: "relative" }}>
+            <NamespacesHeader
+              onRefresh={handleRefreshNamespaces}
+              onCollapseAll={() => setExpandedItems([])}
+            />
+            <Divider />
+            {isTreeFetching > 0 && (
+              <LinearProgress
+                sx={{
+                  position: "absolute",
+                  left: 0,
+                  right: 0,
+                  bottom: 0,
+                  height: 2,
+                }}
+              />
+            )}
           </Box>
-          <Divider />
-          <NamespaceTree
-            selectedId={selectedEntity?.itemId ?? null}
-            onSelect={handleEntitySelect}
-          />
+          <Box
+            sx={{
+              flexGrow: 1,
+              minHeight: 0,
+              overflowY: "auto",
+              display: "flex",
+              flexDirection: "column",
+            }}
+          >
+            <NamespaceTree
+              selectedId={selectedEntity?.itemId ?? null}
+              onSelect={handleEntitySelect}
+              expandedItems={expandedItems}
+              setExpandedItems={setExpandedItems}
+            />
+            {hasNoNamespaces && (
+              <Box sx={{ px: 1.5, pt: 0.5, pb: 1.5 }}>
+                <Button
+                  fullWidth
+                  variant="outlined"
+                  startIcon={<AddLinkRoundedIcon />}
+                  sx={{
+                    color: "text.secondary",
+                    borderColor: "divider",
+                    justifyContent: "flex-start",
+                    fontWeight: 400,
+                    "&:hover": {
+                      borderColor: "text.secondary",
+                      backgroundColor: "action.hover",
+                    },
+                  }}
+                >
+                  Connect namespace
+                </Button>
+              </Box>
+            )}
+          </Box>
         </Paper>
 
         <ResizeHandle
@@ -205,98 +203,11 @@ function App() {
             containerType: "inline-size",
           }}
         >
-          <Box
-            sx={{
-              display: "flex",
-              alignItems: "center",
-              gap: 1,
-              px: 2,
-              py: 1.5,
-              borderBottom: 1,
-              borderColor: "divider",
-              minWidth: 0,
-            }}
-          >
-            <Typography variant="subtitle1" noWrap sx={{ minWidth: 0 }}>
-              {selectedEntity
-                ? `${selectedEntity.label}  ·  ${selectedEntity.namespaceName}`
-                : "No entity selected"}
-            </Typography>
-            {selectedEntity && (
-              <Box
-                sx={{
-                  display: "flex",
-                  gap: 1,
-                  flexShrink: 0,
-                  "@container (max-width: 620px)": { display: "none" },
-                }}
-              >
-                <Chip
-                  size="small"
-                  label={`${activeCount} messages`}
-                  color="primary"
-                  variant="outlined"
-                />
-                <Chip
-                  size="small"
-                  label={`${deadLetterCount} dead letters`}
-                  color="error"
-                  variant="outlined"
-                />
-              </Box>
-            )}
-            <Box sx={{ flexGrow: 1 }} />
-            <ToggleButtonGroup
-              size="small"
-              exclusive
-              value={messageView}
-              onChange={handleViewChange}
-              disabled={selectedEntity === null}
-              aria-label="Message view"
-              sx={{ flexShrink: 0 }}
-            >
-              <ToggleButton
-                value="active"
-                aria-label="Active messages"
-                sx={{
-                  whiteSpace: "nowrap",
-                  "&.Mui-selected": {
-                    color: "primary.main",
-                    borderColor: "primary.main",
-                    backgroundColor: (theme) =>
-                      alpha(theme.palette.primary.main, 0.12),
-                    "&:hover": {
-                      backgroundColor: (theme) =>
-                        alpha(theme.palette.primary.main, 0.2),
-                    },
-                  },
-                }}
-              >
-                <InboxRoundedIcon fontSize="small" sx={{ mr: 0.5 }} />
-                Messages
-              </ToggleButton>
-              <ToggleButton
-                value="deadletter"
-                aria-label="Dead-letter messages"
-                sx={{
-                  whiteSpace: "nowrap",
-                  "&.Mui-selected": {
-                    color: "error.main",
-                    borderColor: "error.main",
-                    backgroundColor: (theme) =>
-                      alpha(theme.palette.error.main, 0.12),
-                    "&:hover": {
-                      backgroundColor: (theme) =>
-                        alpha(theme.palette.error.main, 0.2),
-                    },
-                  },
-                }}
-              >
-                <ReportProblemRoundedIcon fontSize="small" sx={{ mr: 0.5 }} />
-                Dead-letter
-              </ToggleButton>
-            </ToggleButtonGroup>
-          </Box>
+          <MessageToolbar
+            entity={selectedEntity}
+            view={messageView}
+            onViewChange={handleViewChange}
+          />
           <Box sx={{ flexGrow: 1, minHeight: 0 }}>
             <MessageGrid
               rows={rows}
