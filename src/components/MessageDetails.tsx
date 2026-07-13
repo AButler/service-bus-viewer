@@ -9,10 +9,24 @@ import {
   Typography,
 } from "@mui/material";
 import DescriptionRoundedIcon from "@mui/icons-material/DescriptionRounded";
-import type { ServiceBusMessage } from "../data/mockData";
+import type { ServiceBusReceivedMessage } from "../api/types";
 
 interface MessageDetailsProps {
-  message: ServiceBusMessage | null;
+  message: ServiceBusReceivedMessage | null;
+}
+
+function formatDuration(ms: number): string {
+  const totalSeconds = Math.floor(ms / 1000);
+  const days = Math.floor(totalSeconds / 86400);
+  const hours = Math.floor((totalSeconds % 86400) / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+  const pad = (n: number) => n.toString().padStart(2, "0");
+  return `${days}.${pad(hours)}:${pad(minutes)}:${pad(seconds)}`;
+}
+
+function bodyBytes(body: unknown): number {
+  return JSON.stringify(body ?? "").length;
 }
 
 function PropertyRow({
@@ -79,14 +93,14 @@ export default function MessageDetails({ message }: MessageDetailsProps) {
     <Box sx={{ height: "100%", overflowY: "auto", p: 2 }}>
       <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 1 }}>
         <Typography variant="h5" noWrap>
-          {message.subject}
+          {message.subject ?? "(no subject)"}
         </Typography>
         <Chip
           size="small"
-          label={message.state}
-          color="primary"
+          label={message.deadLetterReason ? "Dead-lettered" : message.state}
+          color={message.deadLetterReason ? "error" : "primary"}
           variant="outlined"
-          sx={{ ml: "auto" }}
+          sx={{ ml: "auto", textTransform: "capitalize" }}
         />
       </Box>
       <Typography variant="caption" color="text.secondary">
@@ -98,25 +112,54 @@ export default function MessageDetails({ message }: MessageDetailsProps) {
       <SectionTitle>System Properties</SectionTitle>
       <List dense disablePadding>
         <PropertyRow label="Sequence Number" value={message.sequenceNumber} />
-        <PropertyRow label="Correlation ID" value={message.correlationId} />
-        <PropertyRow label="Session ID" value={message.sessionId ?? "—"} />
-        <PropertyRow label="Content Type" value={message.contentType} />
-        <PropertyRow label="Size" value={`${message.size} bytes`} />
+        <PropertyRow
+          label="Correlation ID"
+          value={message.correlationId ?? "\u2014"}
+        />
+        <PropertyRow label="Session ID" value={message.sessionId ?? "\u2014"} />
+        <PropertyRow
+          label="Content Type"
+          value={message.contentType ?? "\u2014"}
+        />
+        <PropertyRow label="Size" value={`${bodyBytes(message.body)} bytes`} />
         <PropertyRow label="Delivery Count" value={message.deliveryCount} />
-        <PropertyRow label="Time To Live" value={message.timeToLive} />
+        <PropertyRow
+          label="Time To Live"
+          value={formatDuration(message.timeToLive)}
+        />
         <PropertyRow
           label="Enqueued Time (UTC)"
-          value={new Date(message.enqueuedTime).toLocaleString()}
+          value={new Date(message.enqueuedTimeUtc).toLocaleString()}
         />
       </List>
+
+      {message.deadLetterReason && (
+        <>
+          <Divider sx={{ my: 1.5 }} />
+          <SectionTitle>Dead-letter</SectionTitle>
+          <List dense disablePadding>
+            <PropertyRow label="Reason" value={message.deadLetterReason} />
+            <PropertyRow
+              label="Error Description"
+              value={message.deadLetterErrorDescription ?? "\u2014"}
+            />
+            <PropertyRow
+              label="Source"
+              value={message.deadLetterSource ?? "\u2014"}
+            />
+          </List>
+        </>
+      )}
 
       <Divider sx={{ my: 1.5 }} />
 
       <SectionTitle>Application Properties</SectionTitle>
       <List dense disablePadding>
-        {Object.entries(message.applicationProperties).map(([key, value]) => (
-          <PropertyRow key={key} label={key} value={String(value)} />
-        ))}
+        {Object.entries(message.applicationProperties ?? {}).map(
+          ([key, value]) => (
+            <PropertyRow key={key} label={key} value={String(value)} />
+          ),
+        )}
       </List>
 
       <Divider sx={{ my: 1.5 }} />
@@ -142,7 +185,7 @@ export default function MessageDetails({ message }: MessageDetailsProps) {
             wordBreak: "break-word",
           }}
         >
-          {message.body}
+          {JSON.stringify(message.body, null, 2)}
         </Box>
       </Paper>
     </Box>

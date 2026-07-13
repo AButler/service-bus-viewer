@@ -1,0 +1,325 @@
+// Mock implementation of the Azure Service Bus API surface.
+//
+// Every function returns data in the same shape as the official Microsoft SDKs
+// and simulates network latency so loading states are exercised. Swapping these
+// out for real `@azure/arm-servicebus` / `@azure/service-bus` calls would not
+// require any change to the calling hooks or components.
+
+import type {
+  MessageCountDetails,
+  PagedResult,
+  SBNamespace,
+  SBQueue,
+  SBSubscription,
+  SBTopic,
+  ServiceBusReceivedMessage,
+  SubQueue,
+} from "./types";
+
+// --- Raw seed data (would be the real Azure resources in production) ----------
+
+interface RawEntity {
+  name: string;
+  active: number;
+  dead: number;
+}
+
+interface RawTopic {
+  name: string;
+  subscriptions: RawEntity[];
+}
+
+interface RawNamespace {
+  name: string;
+  location: string;
+  queues: RawEntity[];
+  topics: RawTopic[];
+}
+
+const rawNamespaces: RawNamespace[] = [
+  {
+    name: "contoso-prod",
+    location: "uksouth",
+    queues: [
+      { name: "orders", active: 128, dead: 3 },
+      { name: "payments", active: 42, dead: 0 },
+      { name: "notifications", active: 0, dead: 0 },
+    ],
+    topics: [
+      {
+        name: "order-events",
+        subscriptions: [
+          { name: "fulfilment", active: 17, dead: 1 },
+          { name: "analytics", active: 5, dead: 0 },
+          { name: "audit", active: 230, dead: 12 },
+        ],
+      },
+      {
+        name: "inventory",
+        subscriptions: [{ name: "warehouse", active: 8, dead: 0 }],
+      },
+    ],
+  },
+  {
+    name: "contoso-staging",
+    location: "ukwest",
+    queues: [
+      { name: "orders", active: 12, dead: 0 },
+      { name: "dead-letters", active: 0, dead: 0 },
+    ],
+    topics: [
+      {
+        name: "order-events",
+        subscriptions: [{ name: "fulfilment", active: 2, dead: 0 }],
+      },
+    ],
+  },
+  {
+    name: "dev-sandbox",
+    location: "uksouth",
+    queues: [{ name: "scratch", active: 0, dead: 0 }],
+    topics: [],
+  },
+];
+
+// --- Helpers ------------------------------------------------------------------
+
+const SUBSCRIPTION_ID = "00000000-0000-0000-0000-000000000000";
+const RESOURCE_GROUP = "rg-messaging";
+
+function namespaceResourceId(ns: string): string {
+  return (
+    `/subscriptions/${SUBSCRIPTION_ID}/resourceGroups/${RESOURCE_GROUP}` +
+    `/providers/Microsoft.ServiceBus/namespaces/${ns}`
+  );
+}
+
+function countDetails(active: number, dead: number): MessageCountDetails {
+  return {
+    activeMessageCount: active,
+    deadLetterMessageCount: dead,
+    scheduledMessageCount: 0,
+    transferMessageCount: 0,
+    transferDeadLetterMessageCount: 0,
+  };
+}
+
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+// Small deterministic latency (250-650ms) so spinners are visible but not slow.
+function latency(key: string): number {
+  return 250 + (Math.abs(hashString(key)) % 400);
+}
+
+function hashString(value: string): number {
+  let hash = 0;
+  for (let i = 0; i < value.length; i++) {
+    hash = (hash << 5) - hash + value.charCodeAt(i);
+    hash |= 0;
+  }
+  return hash;
+}
+
+function findNamespace(name: string): RawNamespace | undefined {
+  return rawNamespaces.find((ns) => ns.name === name);
+}
+
+// Resolve the raw counts for a queue ("queue") or subscription ("topic/sub").
+function resolveEntity(
+  namespaceName: string,
+  entityPath: string,
+): RawEntity | undefined {
+  const ns = findNamespace(namespaceName);
+  if (!ns) return undefined;
+  if (entityPath.includes("/")) {
+    const [topicName, subName] = entityPath.split("/");
+    const topic = ns.topics.find((t) => t.name === topicName);
+    return topic?.subscriptions.find((s) => s.name === subName);
+  }
+  return ns.queues.find((q) => q.name === entityPath);
+}
+
+// --- Management-plane operations ---------------------------------------------
+
+export async function listNamespaces(): Promise<SBNamespace[]> {
+  await delay(latency("namespaces"));
+  return rawNamespaces.map((ns) => ({
+    id: namespaceResourceId(ns.name),
+    name: ns.name,
+    type: "Microsoft.ServiceBus/Namespaces",
+    location: ns.location,
+    properties: {
+      provisioningState: "Succeeded",
+      status: "Active",
+      serviceBusEndpoint: `https://${ns.name}.servicebus.windows.net:443/`,
+      createdAt: "2026-01-04T09:12:33Z",
+    },
+  }));
+}
+
+export async function listQueues(namespaceName: string): Promise<SBQueue[]> {
+  await delay(latency(`queues:${namespaceName}`));
+  const ns = findNamespace(namespaceName);
+  if (!ns) return [];
+  return ns.queues.map((q) => ({
+    id: `${namespaceResourceId(namespaceName)}/queues/${q.name}`,
+    name: q.name,
+    type: "Microsoft.ServiceBus/Namespaces/Queues",
+    properties: {
+      countDetails: countDetails(q.active, q.dead),
+      messageCount: q.active + q.dead,
+      status: "Active",
+      maxDeliveryCount: 10,
+      requiresSession: false,
+      requiresDuplicateDetection: false,
+    },
+  }));
+}
+
+export async function listTopics(namespaceName: string): Promise<SBTopic[]> {
+  await delay(latency(`topics:${namespaceName}`));
+  const ns = findNamespace(namespaceName);
+  if (!ns) return [];
+  return ns.topics.map((t) => {
+    const active = t.subscriptions.reduce((sum, s) => sum + s.active, 0);
+    const dead = t.subscriptions.reduce((sum, s) => sum + s.dead, 0);
+    return {
+      id: `${namespaceResourceId(namespaceName)}/topics/${t.name}`,
+      name: t.name,
+      type: "Microsoft.ServiceBus/Namespaces/Topics",
+      properties: {
+        countDetails: countDetails(active, dead),
+        subscriptionCount: t.subscriptions.length,
+        status: "Active",
+      },
+    };
+  });
+}
+
+export async function listSubscriptions(
+  namespaceName: string,
+  topicName: string,
+): Promise<SBSubscription[]> {
+  await delay(latency(`subs:${namespaceName}:${topicName}`));
+  const ns = findNamespace(namespaceName);
+  const topic = ns?.topics.find((t) => t.name === topicName);
+  if (!topic) return [];
+  return topic.subscriptions.map((s) => ({
+    id:
+      `${namespaceResourceId(namespaceName)}/topics/${topicName}` +
+      `/subscriptions/${s.name}`,
+    name: s.name,
+    type: "Microsoft.ServiceBus/Namespaces/Topics/Subscriptions",
+    properties: {
+      countDetails: countDetails(s.active, s.dead),
+      messageCount: s.active + s.dead,
+      status: "Active",
+      maxDeliveryCount: 10,
+    },
+  }));
+}
+
+// --- Data-plane operations ----------------------------------------------------
+
+export interface PeekMessagesParams {
+  namespaceName: string;
+  entityPath: string;
+  subQueue: SubQueue;
+  skip: number;
+  top: number;
+}
+
+const subjects = [
+  "OrderCreated",
+  "OrderShipped",
+  "PaymentReceived",
+  "InventoryUpdated",
+  "CustomerNotified",
+];
+
+const deadLetterReasons = [
+  "MaxDeliveryCountExceeded",
+  "TTLExpiredException",
+  "HeaderSizeExceeded",
+  "ApplicationError",
+];
+
+const bodies = [
+  { orderId: "ORD-10432", customerId: "CUST-88213", total: 149.99, currency: "GBP", items: 3 },
+  { orderId: "ORD-10433", status: "shipped", trackingNumber: "TRK-556231" },
+  { paymentId: "PAY-77213", amount: 42.5, method: "card", approved: true },
+];
+
+function buildMessage(
+  seed: number,
+  index: number,
+  deadLetter: boolean,
+): ServiceBusReceivedMessage {
+  const n = seed * 1000 + index;
+  const enqueued = new Date(Date.UTC(2026, 6, 13, 9, 0, 0) + n * 61_000);
+  const timeToLive = 14 * 24 * 60 * 60 * 1000; // 14 days in ms
+  const applicationProperties: Record<string, string | number | boolean> = {
+    source: "checkout-service",
+    version: `1.${seed}.${index % 10}`,
+    region: seed % 2 === 0 ? "uksouth" : "ukwest",
+    priority: (index % 3) + 1,
+    retryable: index % 2 === 0,
+  };
+  return {
+    messageId: `${n.toString(16).padStart(8, "0")}-${seed}`,
+    sequenceNumber: 45000 + n,
+    enqueuedSequenceNumber: 45000 + n,
+    subject: subjects[(seed + index) % subjects.length],
+    body: bodies[(seed + index) % bodies.length],
+    contentType: "application/json",
+    correlationId: `corr-${(seed + index) % 7}`,
+    sessionId: index % 3 === 0 ? `session-${(seed + index) % 5}` : undefined,
+    enqueuedTimeUtc: enqueued,
+    expiresAtUtc: new Date(enqueued.getTime() + timeToLive),
+    timeToLive,
+    deliveryCount: deadLetter ? 10 : index % 4,
+    state: "active",
+    applicationProperties,
+    ...(deadLetter
+      ? {
+          deadLetterReason:
+            deadLetterReasons[(seed + index) % deadLetterReasons.length],
+          deadLetterErrorDescription:
+            "The message could not be processed and was dead-lettered.",
+          deadLetterSource: "checkout-processor",
+        }
+      : {}),
+  };
+}
+
+/**
+ * Peek a page of messages. The real SDK peeks with `fromSequenceNumber` +
+ * `maxMessageCount`; here `skip`/`top` model the same paging. `totalCount`
+ * comes from the entity's count details so the caller can page the full set.
+ */
+export async function peekMessages(
+  params: PeekMessagesParams,
+): Promise<PagedResult<ServiceBusReceivedMessage>> {
+  const { namespaceName, entityPath, subQueue, skip, top } = params;
+  await delay(latency(`peek:${namespaceName}:${entityPath}:${subQueue}`));
+
+  const entity = resolveEntity(namespaceName, entityPath);
+  const isDeadLetter = subQueue === "deadletter";
+  const totalCount = entity ? (isDeadLetter ? entity.dead : entity.active) : 0;
+
+  const seed =
+    Math.abs(hashString(`${namespaceName}/${entityPath}/${subQueue}`)) % 20;
+  const end = Math.min(skip + top, totalCount);
+  const value: ServiceBusReceivedMessage[] = [];
+  for (let i = skip; i < end; i++) {
+    value.push(buildMessage(seed + 1, i, isDeadLetter));
+  }
+
+  return {
+    value,
+    totalCount,
+    nextSkip: end < totalCount ? end : null,
+  };
+}

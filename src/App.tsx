@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import {
   AppBar,
   Box,
@@ -14,6 +14,8 @@ import {
   Typography,
 } from "@mui/material";
 import { useColorScheme } from "@mui/material/styles";
+import { useQueryClient } from "@tanstack/react-query";
+import type { GridPaginationModel } from "@mui/x-data-grid";
 import HubRoundedIcon from "@mui/icons-material/HubRounded";
 import AddLinkRoundedIcon from "@mui/icons-material/AddLinkRounded";
 import RefreshRoundedIcon from "@mui/icons-material/RefreshRounded";
@@ -21,29 +23,15 @@ import LightModeRoundedIcon from "@mui/icons-material/LightModeRounded";
 import DarkModeRoundedIcon from "@mui/icons-material/DarkModeRounded";
 import InboxRoundedIcon from "@mui/icons-material/InboxRounded";
 import ReportProblemRoundedIcon from "@mui/icons-material/ReportProblemRounded";
-import NamespaceTree from "./components/NamespaceTree";
+import NamespaceTree, { type SelectedEntity } from "./components/NamespaceTree";
 import MessageGrid from "./components/MessageGrid";
 import MessageDetails from "./components/MessageDetails";
-import {
-  getMessagesForEntity,
-  namespaces,
-  type ServiceBusMessage,
-} from "./data/mockData";
+import { useMessages } from "./hooks/useServiceBus";
+import type { ServiceBusReceivedMessage } from "./api/types";
 
 const LEFT_WIDTH = 320;
 const RIGHT_WIDTH = 380;
-
-function entityLabel(entityId: string | null): string {
-  if (!entityId) return "No entity selected";
-  // Item ids are prefixed with their kind ("<kind>:<id>"); drop it for display.
-  const rawId = entityId.slice(entityId.indexOf(":") + 1);
-  const parts = rawId.split("/");
-  const ns = parts[0];
-  if (rawId.includes("/s/")) {
-    return `${parts[2]} / ${parts[4]}  ·  ${ns}`;
-  }
-  return `${parts[2]}  ·  ${ns}`;
-}
+const DEFAULT_PAGE_SIZE = 25;
 
 function ColorModeToggle() {
   const { mode, systemMode, setMode } = useColorScheme();
@@ -75,33 +63,43 @@ function ColorModeToggle() {
 }
 
 function App() {
-  const [selectedEntity, setSelectedEntity] = useState<string | null>(
-    "queue:ns-prod/q/orders",
+  const queryClient = useQueryClient();
+  const [selectedEntity, setSelectedEntity] = useState<SelectedEntity | null>(
+    null,
   );
   const [messageView, setMessageView] = useState<"active" | "deadletter">(
     "active",
   );
   const [selectedMessage, setSelectedMessage] =
-    useState<ServiceBusMessage | null>(null);
+    useState<ServiceBusReceivedMessage | null>(null);
+  const [paginationModel, setPaginationModel] = useState<GridPaginationModel>({
+    page: 0,
+    pageSize: DEFAULT_PAGE_SIZE,
+  });
 
-  // Item ids are prefixed with their kind ("<kind>:<id>"); the dead-letter view
-  // reads from the entity's dead-letter sub-queue for the same underlying id.
-  const messageEntityId =
-    selectedEntity === null
-      ? null
-      : messageView === "deadletter"
-        ? `deadletter:${selectedEntity.slice(selectedEntity.indexOf(":") + 1)}`
-        : selectedEntity;
-
-  const messages = useMemo(
-    () => getMessagesForEntity(messageEntityId),
-    [messageEntityId],
+  const messagesQuery = useMessages(
+    selectedEntity
+      ? {
+          namespaceName: selectedEntity.namespaceName,
+          entityPath: selectedEntity.entityPath,
+          subQueue: messageView === "deadletter" ? "deadletter" : "main",
+          skip: paginationModel.page * paginationModel.pageSize,
+          top: paginationModel.pageSize,
+        }
+      : null,
   );
 
-  const handleEntitySelect = (entityId: string | null) => {
-    setSelectedEntity(entityId);
+  const rows = messagesQuery.data?.value ?? [];
+  const rowCount = messagesQuery.data?.totalCount ?? 0;
+  const activeCount = selectedEntity?.countDetails.activeMessageCount ?? 0;
+  const deadLetterCount =
+    selectedEntity?.countDetails.deadLetterMessageCount ?? 0;
+
+  const handleEntitySelect = (entity: SelectedEntity) => {
+    setSelectedEntity(entity);
     setSelectedMessage(null);
     setMessageView("active");
+    setPaginationModel((model) => ({ ...model, page: 0 }));
   };
 
   const handleViewChange = (
@@ -111,7 +109,13 @@ function App() {
     if (value !== null) {
       setMessageView(value);
       setSelectedMessage(null);
+      setPaginationModel((model) => ({ ...model, page: 0 }));
     }
+  };
+
+  const handlePaginationChange = (model: GridPaginationModel) => {
+    setPaginationModel(model);
+    setSelectedMessage(null);
   };
 
   return (
@@ -135,6 +139,7 @@ function App() {
             size="small"
             startIcon={<RefreshRoundedIcon />}
             color="inherit"
+            onClick={() => queryClient.invalidateQueries()}
           >
             Refresh
           </Button>
@@ -170,8 +175,7 @@ function App() {
           </Box>
           <Divider />
           <NamespaceTree
-            namespaces={namespaces}
-            selectedId={selectedEntity}
+            selectedId={selectedEntity?.itemId ?? null}
             onSelect={handleEntitySelect}
           />
         </Paper>
@@ -198,14 +202,18 @@ function App() {
             }}
           >
             <Typography variant="subtitle1" noWrap>
-              {entityLabel(selectedEntity)}
+              {selectedEntity
+                ? `${selectedEntity.label}  ·  ${selectedEntity.namespaceName}`
+                : "No entity selected"}
             </Typography>
-            <Chip
-              size="small"
-              label={`${messages.length} messages`}
-              variant="outlined"
-              sx={{ ml: 1 }}
-            />
+            {selectedEntity && (
+              <Chip
+                size="small"
+                label={`${activeCount} messages, ${deadLetterCount} dead letters`}
+                variant="outlined"
+                sx={{ ml: 1 }}
+              />
+            )}
             <Box sx={{ flexGrow: 1 }} />
             <ToggleButtonGroup
               size="small"
@@ -214,12 +222,21 @@ function App() {
               onChange={handleViewChange}
               disabled={selectedEntity === null}
               aria-label="Message view"
+              sx={{ flexShrink: 0 }}
             >
-              <ToggleButton value="active" aria-label="Active messages">
+              <ToggleButton
+                value="active"
+                aria-label="Active messages"
+                sx={{ whiteSpace: "nowrap" }}
+              >
                 <InboxRoundedIcon fontSize="small" sx={{ mr: 0.5 }} />
                 Messages
               </ToggleButton>
-              <ToggleButton value="deadletter" aria-label="Dead-letter messages">
+              <ToggleButton
+                value="deadletter"
+                aria-label="Dead-letter messages"
+                sx={{ whiteSpace: "nowrap" }}
+              >
                 <ReportProblemRoundedIcon fontSize="small" sx={{ mr: 0.5 }} />
                 Dead-letter
               </ToggleButton>
@@ -227,7 +244,11 @@ function App() {
           </Box>
           <Box sx={{ flexGrow: 1, minHeight: 0 }}>
             <MessageGrid
-              messages={messages}
+              rows={rows}
+              rowCount={rowCount}
+              loading={messagesQuery.isFetching}
+              paginationModel={paginationModel}
+              onPaginationModelChange={handlePaginationChange}
               selectedId={selectedMessage?.messageId ?? null}
               onSelect={setSelectedMessage}
             />

@@ -2,25 +2,29 @@ import { useMemo } from "react";
 import {
   DataGrid,
   type GridColDef,
+  type GridPaginationModel,
   type GridRowParams,
 } from "@mui/x-data-grid";
 import { Box, Chip } from "@mui/material";
-import type { ServiceBusMessage } from "../data/mockData";
+import type { ServiceBusReceivedMessage } from "../api/types";
 
 interface MessageGridProps {
-  messages: ServiceBusMessage[];
+  rows: ServiceBusReceivedMessage[];
+  rowCount: number;
+  loading: boolean;
+  paginationModel: GridPaginationModel;
+  onPaginationModelChange: (model: GridPaginationModel) => void;
   selectedId: string | null;
-  onSelect: (message: ServiceBusMessage) => void;
+  onSelect: (message: ServiceBusReceivedMessage) => void;
 }
 
 const stateColor: Record<
-  ServiceBusMessage["state"],
-  "success" | "warning" | "info" | "error"
+  ServiceBusReceivedMessage["state"],
+  "success" | "warning" | "info"
 > = {
-  Active: "success",
-  Deferred: "warning",
-  Scheduled: "info",
-  DeadLetter: "error",
+  active: "success",
+  deferred: "warning",
+  scheduled: "info",
 };
 
 function formatBytes(bytes: number): string {
@@ -28,12 +32,20 @@ function formatBytes(bytes: number): string {
   return `${(bytes / 1024).toFixed(1)} KB`;
 }
 
+function bodyBytes(body: unknown): number {
+  return JSON.stringify(body ?? "").length;
+}
+
 export default function MessageGrid({
-  messages,
+  rows,
+  rowCount,
+  loading,
+  paginationModel,
+  onPaginationModelChange,
   selectedId,
   onSelect,
 }: MessageGridProps) {
-  const columns = useMemo<GridColDef<ServiceBusMessage>[]>(
+  const columns = useMemo<GridColDef<ServiceBusReceivedMessage>[]>(
     () => [
       {
         field: "sequenceNumber",
@@ -41,26 +53,41 @@ export default function MessageGrid({
         width: 90,
         type: "number",
       },
-      { field: "messageId", headerName: "Message ID", width: 220 },
-      { field: "subject", headerName: "Subject", width: 160 },
+      { field: "messageId", headerName: "Message ID", width: 200 },
+      { field: "subject", headerName: "Subject", width: 150 },
       {
         field: "state",
         headerName: "State",
-        width: 120,
-        renderCell: (params) => (
-          <Chip
-            size="small"
-            label={params.value}
-            color={stateColor[params.value as ServiceBusMessage["state"]]}
-            variant="outlined"
-          />
-        ),
+        width: 130,
+        renderCell: (params) => {
+          const message = params.row;
+          if (message.deadLetterReason) {
+            return (
+              <Chip
+                size="small"
+                label="Dead-lettered"
+                color="error"
+                variant="outlined"
+              />
+            );
+          }
+          return (
+            <Chip
+              size="small"
+              label={message.state}
+              color={stateColor[message.state]}
+              variant="outlined"
+              sx={{ textTransform: "capitalize" }}
+            />
+          );
+        },
       },
       {
         field: "size",
         headerName: "Size",
         width: 90,
         type: "number",
+        valueGetter: (_value, row) => bodyBytes(row.body),
         valueFormatter: (value: number) => formatBytes(value),
       },
       {
@@ -70,10 +97,10 @@ export default function MessageGrid({
         type: "number",
       },
       {
-        field: "enqueuedTime",
+        field: "enqueuedTimeUtc",
         headerName: "Enqueued (UTC)",
         width: 190,
-        valueFormatter: (value: string) => new Date(value).toLocaleString(),
+        valueFormatter: (value: Date) => new Date(value).toLocaleString(),
       },
     ],
     [],
@@ -82,12 +109,17 @@ export default function MessageGrid({
   return (
     <Box sx={{ height: "100%", width: "100%" }}>
       <DataGrid
-        rows={messages}
+        rows={rows}
         columns={columns}
         getRowId={(row) => row.messageId}
         density="compact"
         disableColumnMenu
-        onRowClick={(params: GridRowParams<ServiceBusMessage>) =>
+        loading={loading}
+        paginationMode="server"
+        rowCount={rowCount}
+        paginationModel={paginationModel}
+        onPaginationModelChange={onPaginationModelChange}
+        onRowClick={(params: GridRowParams<ServiceBusReceivedMessage>) =>
           onSelect(params.row)
         }
         rowSelectionModel={
@@ -95,9 +127,6 @@ export default function MessageGrid({
             ? { type: "include", ids: new Set([selectedId]) }
             : { type: "include", ids: new Set() }
         }
-        initialState={{
-          pagination: { paginationModel: { pageSize: 25 } },
-        }}
         pageSizeOptions={[25, 50, 100]}
         sx={{
           border: "none",
