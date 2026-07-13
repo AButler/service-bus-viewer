@@ -15,6 +15,14 @@ interface NamespaceTreeProps {
   onSelect: (entityId: string | null) => void;
 }
 
+// Each tree node encodes its kind as an id prefix ("<kind>:<id>") so the kind
+// can be recovered by parsing, without a separate lookup map.
+const selectableKinds: ReadonlySet<string> = new Set(["queue", "subscription"]);
+
+function parseNodeKind(itemId: string): string {
+  return itemId.slice(0, itemId.indexOf(":"));
+}
+
 const statusColor: Record<
   NamespaceNode["status"],
   "success" | "warning" | "error"
@@ -84,22 +92,23 @@ export default function NamespaceTree({
     <SimpleTreeView
       selectedItems={selectedId}
       onSelectedItemsChange={(_event, itemId) => {
-        // Only leaf entities (queues / subscriptions) map to a message list.
-        if (itemId && (itemId.includes("/q/") || itemId.includes("/s/"))) {
+        // The kind is encoded in the item id, so parse it to decide whether the
+        // selected node is a message-bearing entity (queue / subscription).
+        if (itemId && selectableKinds.has(parseNodeKind(itemId))) {
           onSelect(itemId);
         }
       }}
       defaultExpandedItems={namespaces.flatMap((ns) => [
-        ns.id,
-        `${ns.id}::queues`,
-        `${ns.id}::topics`,
+        `namespace:${ns.id}`,
+        `group:${ns.id}:queues`,
+        `group:${ns.id}:topics`,
       ])}
       sx={{ px: 1, py: 1, overflowY: "auto", flexGrow: 1 }}
     >
       {namespaces.map((ns) => (
         <TreeItem
           key={ns.id}
-          itemId={ns.id}
+          itemId={`namespace:${ns.id}`}
           label={
             <Box
               sx={{ display: "flex", alignItems: "center", gap: 1, py: 0.5 }}
@@ -126,7 +135,7 @@ export default function NamespaceTree({
           }
         >
           <TreeItem
-            itemId={`${ns.id}::queues`}
+            itemId={`group:${ns.id}:queues`}
             label={
               <EntityLabel
                 icon={<FolderRoundedIcon fontSize="small" color="action" />}
@@ -137,7 +146,7 @@ export default function NamespaceTree({
             {ns.queues.map((q) => (
               <TreeItem
                 key={q.id}
-                itemId={q.id}
+                itemId={`queue:${q.id}`}
                 label={
                   <EntityLabel
                     icon={<InboxRoundedIcon fontSize="small" color="primary" />}
@@ -151,7 +160,7 @@ export default function NamespaceTree({
           </TreeItem>
 
           <TreeItem
-            itemId={`${ns.id}::topics`}
+            itemId={`group:${ns.id}:topics`}
             label={
               <EntityLabel
                 icon={<FolderRoundedIcon fontSize="small" color="action" />}
@@ -162,7 +171,7 @@ export default function NamespaceTree({
             {ns.topics.map((t) => (
               <TreeItem
                 key={t.id}
-                itemId={t.id}
+                itemId={`topic:${t.id}`}
                 label={
                   <EntityLabel
                     icon={
@@ -175,7 +184,7 @@ export default function NamespaceTree({
                 {t.subscriptions.map((s) => (
                   <TreeItem
                     key={s.id}
-                    itemId={s.id}
+                    itemId={`subscription:${s.id}`}
                     label={
                       <EntityLabel
                         icon={

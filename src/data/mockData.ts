@@ -1,8 +1,9 @@
 // Domain types and mock data for the Service Bus viewer UI.
 
-export type EntityKind = "queue" | "subscription";
+export type EntityKind = "namespace" | "queue" | "topic" | "subscription";
 
 export interface SubscriptionNode {
+  kind: "subscription";
   id: string;
   name: string;
   activeCount: number;
@@ -10,12 +11,14 @@ export interface SubscriptionNode {
 }
 
 export interface TopicNode {
+  kind: "topic";
   id: string;
   name: string;
   subscriptions: SubscriptionNode[];
 }
 
 export interface QueueNode {
+  kind: "queue";
   id: string;
   name: string;
   activeCount: number;
@@ -23,6 +26,7 @@ export interface QueueNode {
 }
 
 export interface NamespaceNode {
+  kind: "namespace";
   id: string;
   name: string;
   endpoint: string;
@@ -49,24 +53,28 @@ export interface ServiceBusMessage {
 
 export const namespaces: NamespaceNode[] = [
   {
+    kind: "namespace",
     id: "ns-prod",
     name: "contoso-prod",
     endpoint: "contoso-prod.servicebus.windows.net",
     status: "connected",
     queues: [
       {
+        kind: "queue",
         id: "ns-prod/q/orders",
         name: "orders",
         activeCount: 128,
         deadLetterCount: 3,
       },
       {
+        kind: "queue",
         id: "ns-prod/q/payments",
         name: "payments",
         activeCount: 42,
         deadLetterCount: 0,
       },
       {
+        kind: "queue",
         id: "ns-prod/q/notifications",
         name: "notifications",
         activeCount: 0,
@@ -75,22 +83,26 @@ export const namespaces: NamespaceNode[] = [
     ],
     topics: [
       {
+        kind: "topic",
         id: "ns-prod/t/order-events",
         name: "order-events",
         subscriptions: [
           {
+            kind: "subscription",
             id: "ns-prod/t/order-events/s/fulfilment",
             name: "fulfilment",
             activeCount: 17,
             deadLetterCount: 1,
           },
           {
+            kind: "subscription",
             id: "ns-prod/t/order-events/s/analytics",
             name: "analytics",
             activeCount: 5,
             deadLetterCount: 0,
           },
           {
+            kind: "subscription",
             id: "ns-prod/t/order-events/s/audit",
             name: "audit",
             activeCount: 230,
@@ -99,10 +111,12 @@ export const namespaces: NamespaceNode[] = [
         ],
       },
       {
+        kind: "topic",
         id: "ns-prod/t/inventory",
         name: "inventory",
         subscriptions: [
           {
+            kind: "subscription",
             id: "ns-prod/t/inventory/s/warehouse",
             name: "warehouse",
             activeCount: 8,
@@ -113,18 +127,21 @@ export const namespaces: NamespaceNode[] = [
     ],
   },
   {
+    kind: "namespace",
     id: "ns-staging",
     name: "contoso-staging",
     endpoint: "contoso-staging.servicebus.windows.net",
     status: "connected",
     queues: [
       {
+        kind: "queue",
         id: "ns-staging/q/orders",
         name: "orders",
         activeCount: 12,
         deadLetterCount: 0,
       },
       {
+        kind: "queue",
         id: "ns-staging/q/dead-letters",
         name: "dead-letters",
         activeCount: 0,
@@ -133,10 +150,12 @@ export const namespaces: NamespaceNode[] = [
     ],
     topics: [
       {
+        kind: "topic",
         id: "ns-staging/t/order-events",
         name: "order-events",
         subscriptions: [
           {
+            kind: "subscription",
             id: "ns-staging/t/order-events/s/fulfilment",
             name: "fulfilment",
             activeCount: 2,
@@ -147,12 +166,14 @@ export const namespaces: NamespaceNode[] = [
     ],
   },
   {
+    kind: "namespace",
     id: "ns-dev",
     name: "dev-sandbox",
     endpoint: "dev-sandbox.servicebus.windows.net",
     status: "error",
     queues: [
       {
+        kind: "queue",
         id: "ns-dev/q/scratch",
         name: "scratch",
         activeCount: 0,

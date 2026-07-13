@@ -31,9 +31,11 @@ const RIGHT_WIDTH = 380;
 
 function entityLabel(entityId: string | null): string {
   if (!entityId) return "No entity selected";
-  const parts = entityId.split("/");
+  // Item ids are prefixed with their kind ("<kind>:<id>"); drop it for display.
+  const rawId = entityId.slice(entityId.indexOf(":") + 1);
+  const parts = rawId.split("/");
   const ns = parts[0];
-  if (entityId.includes("/s/")) {
+  if (rawId.includes("/s/")) {
     return `${parts[2]} / ${parts[4]}  ·  ${ns}`;
   }
   return `${parts[2]}  ·  ${ns}`;
@@ -70,7 +72,7 @@ function ColorModeToggle() {
 
 function App() {
   const [selectedEntity, setSelectedEntity] = useState<string | null>(
-    "ns-prod/q/orders",
+    "queue:ns-prod/q/orders",
   );
   const [selectedMessage, setSelectedMessage] =
     useState<ServiceBusMessage | null>(null);
