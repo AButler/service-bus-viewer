@@ -60,9 +60,7 @@ describe("App routing", () => {
 
   it("restores a subscription selection from a deep link", async () => {
     renderApp("/contoso-prod/topics/order-events/audit/messages");
-    expect(
-      await screen.findByText("order-events / audit"),
-    ).toBeInTheDocument();
+    expect(await screen.findByText("order-events / audit")).toBeInTheDocument();
   });
 
   it("redirects to the root for an unknown namespace", async () => {

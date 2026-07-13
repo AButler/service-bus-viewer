@@ -25,7 +25,9 @@ describe("bodyBytes / bodyToText", () => {
 
   it("pretty-prints objects and passes strings through", () => {
     expect(bodyToText("hello")).toBe("hello");
-    expect(bodyToText(message.body)).toBe(JSON.stringify(message.body, null, 2));
+    expect(bodyToText(message.body)).toBe(
+      JSON.stringify(message.body, null, 2),
+    );
   });
 });
 

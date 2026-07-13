@@ -1,9 +1,5 @@
 import { describe, it, expect } from "vitest";
-import {
-  listNamespaces,
-  listQueues,
-  peekMessages,
-} from "./serviceBusClient";
+import { listNamespaces, listQueues, peekMessages } from "./serviceBusClient";
 
 describe("listNamespaces", () => {
   it("returns the seeded namespaces with https endpoints", async () => {
@@ -89,9 +85,9 @@ describe("peekMessages (active)", () => {
       top: 50,
     });
     expect(page.value.some((m) => m.subject === undefined)).toBe(true);
-    expect(
-      page.value.some((m) => JSON.stringify(m.body).length > 1024),
-    ).toBe(true);
+    expect(page.value.some((m) => JSON.stringify(m.body).length > 1024)).toBe(
+      true,
+    );
   });
 });
 
