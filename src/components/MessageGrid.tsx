@@ -127,7 +127,7 @@ export default function MessageGrid({
       <DataGrid
         rows={rows}
         columns={columns}
-        getRowId={(row) => row.messageId}
+        getRowId={(row) => String(row.sequenceNumber)}
         density="compact"
         disableColumnMenu
         disableColumnSorting

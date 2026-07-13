@@ -25,7 +25,8 @@
     "date-fns": "^4.4.0",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
-    "react-json-view-lite": "^2.5.0"
+    "react-json-view-lite": "^2.5.0",
+    "react-router-dom": "^7.18.1"
   },
   "devDependencies": {
     "@tauri-apps/cli": "^2",
