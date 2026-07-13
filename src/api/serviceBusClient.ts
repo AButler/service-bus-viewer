@@ -247,7 +247,13 @@ const deadLetterReasons = [
 ];
 
 const bodies = [
-  { orderId: "ORD-10432", customerId: "CUST-88213", total: 149.99, currency: "GBP", items: 3 },
+  {
+    orderId: "ORD-10432",
+    customerId: "CUST-88213",
+    total: 149.99,
+    currency: "GBP",
+    items: 3,
+  },
   { orderId: "ORD-10433", status: "shipped", trackingNumber: "TRK-556231" },
   { paymentId: "PAY-77213", amount: 42.5, method: "card", approved: true },
 ];

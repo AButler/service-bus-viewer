@@ -26,11 +26,16 @@ import ReportProblemRoundedIcon from "@mui/icons-material/ReportProblemRounded";
 import NamespaceTree, { type SelectedEntity } from "./components/NamespaceTree";
 import MessageGrid from "./components/MessageGrid";
 import MessageDetails from "./components/MessageDetails";
+import ResizeHandle from "./components/ResizeHandle";
 import { useMessages } from "./hooks/useServiceBus";
 import type { ServiceBusReceivedMessage } from "./api/types";
 
-const LEFT_WIDTH = 320;
-const RIGHT_WIDTH = 380;
+const DEFAULT_LEFT_WIDTH = 320;
+const DEFAULT_RIGHT_WIDTH = 380;
+const MIN_LEFT_WIDTH = 240;
+const MAX_LEFT_WIDTH = 560;
+const MIN_RIGHT_WIDTH = 300;
+const MAX_RIGHT_WIDTH = 640;
 const DEFAULT_PAGE_SIZE = 25;
 
 function ColorModeToggle() {
@@ -76,6 +81,8 @@ function App() {
     page: 0,
     pageSize: DEFAULT_PAGE_SIZE,
   });
+  const [leftWidth, setLeftWidth] = useState(DEFAULT_LEFT_WIDTH);
+  const [rightWidth, setRightWidth] = useState(DEFAULT_RIGHT_WIDTH);
 
   const messagesQuery = useMessages(
     selectedEntity
@@ -159,10 +166,8 @@ function App() {
           square
           elevation={0}
           sx={{
-            width: LEFT_WIDTH,
+            width: leftWidth,
             flexShrink: 0,
-            borderRight: 1,
-            borderColor: "divider",
             display: "flex",
             flexDirection: "column",
             minHeight: 0,
@@ -179,6 +184,14 @@ function App() {
             onSelect={handleEntitySelect}
           />
         </Paper>
+
+        <ResizeHandle
+          ariaLabel="Resize namespaces panel"
+          value={leftWidth}
+          min={MIN_LEFT_WIDTH}
+          max={MAX_LEFT_WIDTH}
+          onChange={setLeftWidth}
+        />
 
         {/* Middle: message grid */}
         <Box
@@ -255,15 +268,22 @@ function App() {
           </Box>
         </Box>
 
+        <ResizeHandle
+          ariaLabel="Resize details panel"
+          value={rightWidth}
+          min={MIN_RIGHT_WIDTH}
+          max={MAX_RIGHT_WIDTH}
+          invert
+          onChange={setRightWidth}
+        />
+
         {/* Right: message properties */}
         <Paper
           square
           elevation={0}
           sx={{
-            width: RIGHT_WIDTH,
+            width: rightWidth,
             flexShrink: 0,
-            borderLeft: 1,
-            borderColor: "divider",
             display: "flex",
             flexDirection: "column",
             minHeight: 0,
