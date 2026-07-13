@@ -48,6 +48,21 @@ export default function JsonBodyRenderer({
         "& > [role='tree'] > [role='treeitem'] > [role='button']": {
           display: "none",
         },
+        // Hang the expand/collapse chevron in the left gutter so an expandable
+        // property's opening quote lines up with non-expandable properties.
+        "& [role='treeitem'] > [role='button']": {
+          display: "inline-block",
+          width: "1em",
+          margin: 0,
+          marginLeft: "-1em",
+          fontSize: "1em",
+          textAlign: "left",
+        },
+        // Mute the structural punctuation ({ } [ ] , :) so the data stands out.
+        "& .sbv-json-punctuation": {
+          color: "text.disabled",
+          fontWeight: 400,
+        },
       }}
     >
       <JsonView
@@ -57,6 +72,7 @@ export default function JsonBodyRenderer({
           ...(isDark ? darkStyles : defaultStyles),
           stringifyStringValues: true,
           quotesForFieldNames: true,
+          punctuation: "sbv-json-punctuation",
         }}
       />
     </Box>

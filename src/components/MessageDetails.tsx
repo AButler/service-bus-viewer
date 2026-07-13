@@ -32,6 +32,65 @@ function bodyBytes(body: unknown): number {
   return JSON.stringify(body ?? "").length;
 }
 
+function bodyToText(body: unknown): string {
+  if (typeof body === "string") return body;
+  return JSON.stringify(body, null, 2);
+}
+
+function CopyButton({
+  value,
+  label,
+  hovered,
+  edge,
+}: {
+  value: string;
+  label: string;
+  hovered: boolean;
+  edge?: "start" | "end" | false;
+}) {
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = async (event: React.MouseEvent) => {
+    event.stopPropagation();
+    try {
+      await copyText(value);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1200);
+    } catch {
+      // Ignore clipboard failures (e.g. permission denied).
+    }
+  };
+
+  return (
+    <Tooltip title={copied ? "Copied" : "Copy"}>
+      <IconButton
+        size="small"
+        edge={edge}
+        aria-label={label}
+        onClick={handleCopy}
+        sx={{ position: "relative" }}
+      >
+        <ContentCopyRoundedIcon
+          fontSize="inherit"
+          sx={{
+            opacity: hovered && !copied ? 1 : 0,
+            transition: "opacity 0.15s",
+          }}
+        />
+        <CheckRoundedIcon
+          color="success"
+          fontSize="inherit"
+          sx={{
+            position: "absolute",
+            opacity: copied ? 1 : 0,
+            transition: "opacity 0.4s",
+          }}
+        />
+      </IconButton>
+    </Tooltip>
+  );
+}
+
 function PropertyRow({
   label,
   value,
@@ -43,19 +102,7 @@ function PropertyRow({
   copyValue?: string;
   rawName?: string;
 }) {
-  const [copied, setCopied] = useState(false);
   const [hovered, setHovered] = useState(false);
-
-  const handleCopy = async () => {
-    if (copyValue === undefined) return;
-    try {
-      await copyText(copyValue);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 1200);
-    } catch {
-      // Ignore clipboard failures (e.g. permission denied).
-    }
-  };
 
   return (
     <ListItem
@@ -65,32 +112,12 @@ function PropertyRow({
       sx={{ py: 0.5, alignItems: "flex-start" }}
       secondaryAction={
         copyValue !== undefined ? (
-          <Tooltip title={copied ? "Copied" : "Copy"}>
-            <IconButton
-              size="small"
-              edge="end"
-              aria-label={`Copy ${label}`}
-              onClick={handleCopy}
-              sx={{ position: "relative" }}
-            >
-              <ContentCopyRoundedIcon
-                fontSize="inherit"
-                sx={{
-                  opacity: hovered && !copied ? 1 : 0,
-                  transition: "opacity 0.15s",
-                }}
-              />
-              <CheckRoundedIcon
-                color="success"
-                fontSize="inherit"
-                sx={{
-                  position: "absolute",
-                  opacity: copied ? 1 : 0,
-                  transition: "opacity 0.4s",
-                }}
-              />
-            </IconButton>
-          </Tooltip>
+          <CopyButton
+            value={copyValue}
+            label={`Copy ${label}`}
+            hovered={hovered}
+            edge="end"
+          />
         ) : undefined
       }
     >
@@ -189,13 +216,17 @@ function Section({
   title,
   expanded,
   onToggle,
+  copyValue,
   children,
 }: {
   title: string;
   expanded: boolean;
   onToggle: () => void;
+  copyValue?: string;
   children: React.ReactNode;
 }) {
+  const [hovered, setHovered] = useState(false);
+
   return (
     <Accordion
       expanded={expanded}
@@ -215,13 +246,24 @@ function Section({
     >
       <AccordionSummary
         expandIcon={<ExpandMoreRoundedIcon fontSize="small" />}
+        onMouseEnter={() => setHovered(true)}
+        onMouseLeave={() => setHovered(false)}
         sx={{
           px: 0,
           minHeight: 0,
-          "& .MuiAccordionSummary-content": { my: 1 },
+          "& .MuiAccordionSummary-content": { my: 1, alignItems: "center" },
         }}
       >
         <SectionTitle>{title}</SectionTitle>
+        {copyValue !== undefined && (
+          <Box sx={{ ml: "auto", mr: 1, display: "inline-flex" }}>
+            <CopyButton
+              value={copyValue}
+              label={`Copy ${title}`}
+              hovered={hovered}
+            />
+          </Box>
+        )}
       </AccordionSummary>
       <AccordionDetails sx={{ px: 0, pt: 0 }}>{children}</AccordionDetails>
     </Accordion>
@@ -369,6 +411,7 @@ export default function MessageDetails({ message }: MessageDetailsProps) {
             title="Body"
             expanded={isExpanded("Body")}
             onToggle={() => toggleSection("Body")}
+            copyValue={bodyToText(message.body)}
           >
             <Paper
               variant="outlined"
