@@ -15,7 +15,10 @@ import type { BodyRendererProps } from "./types";
  * Renders a JSON body with syntax highlighting and collapsible nodes (folding).
  * Falls back to plain text if the body cannot be parsed as a JSON object/array.
  */
-export default function JsonBodyRenderer({ body, contentType }: BodyRendererProps) {
+export default function JsonBodyRenderer({
+  body,
+  contentType,
+}: BodyRendererProps) {
   const { mode, systemMode } = useColorScheme();
   const resolvedMode = mode === "system" ? systemMode : mode;
   const isDark = resolvedMode === "dark";
