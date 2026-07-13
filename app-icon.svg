@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+  <!-- Service Bus Viewer app icon -->
+  <!-- Blue: service bus / message queue -->
+  <rect x="24" y="200" width="300" height="112" rx="56" fill="#CFE4FF" />
+  <rect x="50" y="226" width="60" height="60" rx="14" fill="#0F6FE0" />
+  <rect x="140" y="226" width="60" height="60" rx="14" fill="#2E90F2" />
+  <!-- Focused / magnified message -->
+  <rect x="214" y="214" width="84" height="84" rx="18" fill="#5AA9FF" />
+  <!-- Amber: magnifying glass (search) -->
+  <line x1="315" y1="315" x2="396" y2="396" stroke="#FFFFFF" stroke-width="54" stroke-linecap="round" />
+  <line x1="315" y1="315" x2="396" y2="396" stroke="#F59E0B" stroke-width="34" stroke-linecap="round" />
+  <circle cx="256" cy="256" r="84" fill="#FFFFFF" fill-opacity="0.18" />
+  <circle cx="256" cy="256" r="84" fill="none" stroke="#F59E0B" stroke-width="30" />
+  <path d="M212 236 a60 60 0 0 1 30 -20" stroke="#FFFFFF" stroke-width="12" stroke-linecap="round" fill="none" opacity="0.85" />
+</svg>

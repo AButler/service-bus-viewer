@@ -130,6 +130,7 @@ export default function MessageGrid({
         getRowId={(row) => row.messageId}
         density="compact"
         disableColumnMenu
+        disableColumnSorting
         loading={loading}
         paginationMode="server"
         rowCount={rowCount}

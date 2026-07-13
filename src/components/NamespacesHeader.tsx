@@ -70,12 +70,14 @@ export default function NamespacesHeader({
         </IconButton>
       </Tooltip>
       <IconButton
+        className="namespaces-header-action"
         size="small"
         aria-label="Namespaces menu"
         aria-haspopup="true"
         aria-controls={open ? "namespaces-menu" : undefined}
         aria-expanded={open ? "true" : undefined}
         onClick={(event) => setAnchorEl(event.currentTarget)}
+        sx={{ opacity: open ? 1 : 0, transition: "opacity 0.15s" }}
       >
         <MoreVertRoundedIcon fontSize="small" />
       </IconButton>

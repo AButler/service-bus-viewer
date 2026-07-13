@@ -5,7 +5,6 @@ import {
   Dialog,
   DialogActions,
   DialogContent,
-  DialogTitle,
   IconButton,
   Link,
   Tooltip,
@@ -16,6 +15,7 @@ import GitHubIcon from "@mui/icons-material/GitHub";
 import { isTauri } from "@tauri-apps/api/core";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { version as appVersion } from "../../package.json";
+import AppIcon from "./AppIcon";
 
 const REPO_URL = "https://github.com/AButler/service-bus-viewer";
 
@@ -50,21 +50,38 @@ export default function AboutButton() {
         maxWidth="xs"
         fullWidth
       >
-        <DialogTitle>Service Bus Viewer</DialogTitle>
         <DialogContent>
-          <Typography variant="body2" color="text.secondary" gutterBottom>
-            Version {appVersion}
-          </Typography>
-          <Box sx={{ mt: 1 }}>
+          <Box
+            sx={{
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              textAlign: "center",
+              gap: 1,
+              py: 2,
+            }}
+          >
+            <AppIcon size={72} />
+            <Typography variant="h6" component="h2">
+              Service Bus Viewer
+            </Typography>
+            <Typography variant="body2" color="text.secondary">
+              Version {appVersion}
+            </Typography>
             <Link
               href={REPO_URL}
               target="_blank"
               rel="noopener noreferrer"
               onClick={handleRepoClick}
-              sx={{ display: "inline-flex", alignItems: "center", gap: 0.5 }}
+              sx={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 0.5,
+                mt: 1,
+              }}
             >
               <GitHubIcon fontSize="small" />
-              {REPO_URL}
+              View on GitHub
             </Link>
           </Box>
         </DialogContent>
