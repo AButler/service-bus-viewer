@@ -340,9 +340,16 @@ function NamespaceItem({
 }) {
   const itemId = `namespace:${namespace.name}`;
   const isExpanded = expandedItems.includes(itemId);
-  const host = namespace.properties.serviceBusEndpoint
-    .replace(/^https?:\/\//, "")
-    .replace(/:443\/?$/, "");
+  const host = (() => {
+    try {
+      const url = new URL(namespace.properties.serviceBusEndpoint);
+      // `url.port` is empty for the protocol's default port (e.g. 443 for
+      // https), so only append it when it's non-standard.
+      return url.port ? `${url.hostname}:${url.port}` : url.hostname;
+    } catch {
+      return namespace.properties.serviceBusEndpoint;
+    }
+  })();
 
   return (
     <TreeItem
