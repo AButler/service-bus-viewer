@@ -12,6 +12,7 @@ interface MessageGridProps {
   rows: ServiceBusReceivedMessage[];
   rowCount: number;
   loading: boolean;
+  deadLetterView: boolean;
   paginationModel: GridPaginationModel;
   onPaginationModelChange: (model: GridPaginationModel) => void;
   selectedId: string | null;
@@ -40,6 +41,7 @@ export default function MessageGrid({
   rows,
   rowCount,
   loading,
+  deadLetterView,
   paginationModel,
   onPaginationModelChange,
   selectedId,
@@ -82,6 +84,20 @@ export default function MessageGrid({
           );
         },
       },
+      ...(deadLetterView
+        ? ([
+            {
+              field: "deadLetterReason",
+              headerName: "Dead Letter Reason",
+              width: 200,
+            },
+            {
+              field: "deadLetterErrorDescription",
+              headerName: "Dead Letter Error Description",
+              width: 280,
+            },
+          ] as GridColDef<ServiceBusReceivedMessage>[])
+        : []),
       {
         field: "size",
         headerName: "Size",
@@ -103,7 +119,7 @@ export default function MessageGrid({
         valueFormatter: (value: Date) => new Date(value).toLocaleString(),
       },
     ],
-    [],
+    [deadLetterView],
   );
 
   return (

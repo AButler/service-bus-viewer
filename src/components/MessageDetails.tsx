@@ -10,6 +10,7 @@ import {
 } from "@mui/material";
 import DescriptionRoundedIcon from "@mui/icons-material/DescriptionRounded";
 import type { ServiceBusReceivedMessage } from "../api/types";
+import { getBodyRenderer } from "./bodyRenderers";
 
 interface MessageDetailsProps {
   message: ServiceBusReceivedMessage | null;
@@ -175,18 +176,15 @@ export default function MessageDetails({ message }: MessageDetailsProps) {
           overflowX: "auto",
         }}
       >
-        <Box
-          component="pre"
-          sx={{
-            m: 0,
-            fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace",
-            fontSize: "0.75rem",
-            whiteSpace: "pre-wrap",
-            wordBreak: "break-word",
-          }}
-        >
-          {JSON.stringify(message.body, null, 2)}
-        </Box>
+        {(() => {
+          const BodyRenderer = getBodyRenderer(message.contentType);
+          return (
+            <BodyRenderer
+              body={message.body}
+              contentType={message.contentType}
+            />
+          );
+        })()}
       </Paper>
     </Box>
   );

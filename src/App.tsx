@@ -13,7 +13,7 @@ import {
   Tooltip,
   Typography,
 } from "@mui/material";
-import { useColorScheme } from "@mui/material/styles";
+import { alpha, useColorScheme } from "@mui/material/styles";
 import { useQueryClient } from "@tanstack/react-query";
 import type { GridPaginationModel } from "@mui/x-data-grid";
 import HubRoundedIcon from "@mui/icons-material/HubRounded";
@@ -201,6 +201,8 @@ function App() {
             flexDirection: "column",
             minWidth: 0,
             minHeight: 0,
+            overflow: "hidden",
+            containerType: "inline-size",
           }}
         >
           <Box
@@ -212,20 +214,36 @@ function App() {
               py: 1.5,
               borderBottom: 1,
               borderColor: "divider",
+              minWidth: 0,
             }}
           >
-            <Typography variant="subtitle1" noWrap>
+            <Typography variant="subtitle1" noWrap sx={{ minWidth: 0 }}>
               {selectedEntity
                 ? `${selectedEntity.label}  ·  ${selectedEntity.namespaceName}`
                 : "No entity selected"}
             </Typography>
             {selectedEntity && (
-              <Chip
-                size="small"
-                label={`${activeCount} messages, ${deadLetterCount} dead letters`}
-                variant="outlined"
-                sx={{ ml: 1 }}
-              />
+              <Box
+                sx={{
+                  display: "flex",
+                  gap: 1,
+                  flexShrink: 0,
+                  "@container (max-width: 620px)": { display: "none" },
+                }}
+              >
+                <Chip
+                  size="small"
+                  label={`${activeCount} messages`}
+                  color="primary"
+                  variant="outlined"
+                />
+                <Chip
+                  size="small"
+                  label={`${deadLetterCount} dead letters`}
+                  color="error"
+                  variant="outlined"
+                />
+              </Box>
             )}
             <Box sx={{ flexGrow: 1 }} />
             <ToggleButtonGroup
@@ -240,7 +258,19 @@ function App() {
               <ToggleButton
                 value="active"
                 aria-label="Active messages"
-                sx={{ whiteSpace: "nowrap" }}
+                sx={{
+                  whiteSpace: "nowrap",
+                  "&.Mui-selected": {
+                    color: "primary.main",
+                    borderColor: "primary.main",
+                    backgroundColor: (theme) =>
+                      alpha(theme.palette.primary.main, 0.12),
+                    "&:hover": {
+                      backgroundColor: (theme) =>
+                        alpha(theme.palette.primary.main, 0.2),
+                    },
+                  },
+                }}
               >
                 <InboxRoundedIcon fontSize="small" sx={{ mr: 0.5 }} />
                 Messages
@@ -248,7 +278,19 @@ function App() {
               <ToggleButton
                 value="deadletter"
                 aria-label="Dead-letter messages"
-                sx={{ whiteSpace: "nowrap" }}
+                sx={{
+                  whiteSpace: "nowrap",
+                  "&.Mui-selected": {
+                    color: "error.main",
+                    borderColor: "error.main",
+                    backgroundColor: (theme) =>
+                      alpha(theme.palette.error.main, 0.12),
+                    "&:hover": {
+                      backgroundColor: (theme) =>
+                        alpha(theme.palette.error.main, 0.2),
+                    },
+                  },
+                }}
               >
                 <ReportProblemRoundedIcon fontSize="small" sx={{ mr: 0.5 }} />
                 Dead-letter
@@ -260,6 +302,7 @@ function App() {
               rows={rows}
               rowCount={rowCount}
               loading={messagesQuery.isFetching}
+              deadLetterView={messageView === "deadletter"}
               paginationModel={paginationModel}
               onPaginationModelChange={handlePaginationChange}
               selectedId={selectedMessage?.messageId ?? null}
