@@ -1,50 +1,140 @@
-import { useState } from "react";
-import reactLogo from "./assets/react.svg";
-import { invoke } from "@tauri-apps/api/core";
-import "./App.css";
+import { useMemo, useState } from "react";
+import {
+  AppBar,
+  Box,
+  Button,
+  Chip,
+  Divider,
+  Paper,
+  Toolbar,
+  Typography,
+} from "@mui/material";
+import HubRoundedIcon from "@mui/icons-material/HubRounded";
+import AddLinkRoundedIcon from "@mui/icons-material/AddLinkRounded";
+import RefreshRoundedIcon from "@mui/icons-material/RefreshRounded";
+import NamespaceTree from "./components/NamespaceTree";
+import MessageGrid from "./components/MessageGrid";
+import MessageDetails from "./components/MessageDetails";
+import { getMessagesForEntity, namespaces, type ServiceBusMessage } from "./data/mockData";
+
+const LEFT_WIDTH = 320;
+const RIGHT_WIDTH = 380;
+
+function entityLabel(entityId: string | null): string {
+  if (!entityId) return "No entity selected";
+  const parts = entityId.split("/");
+  const ns = parts[0];
+  if (entityId.includes("/s/")) {
+    return `${parts[2]} / ${parts[4]}  ·  ${ns}`;
+  }
+  return `${parts[2]}  ·  ${ns}`;
+}
 
 function App() {
-  const [greetMsg, setGreetMsg] = useState("");
-  const [name, setName] = useState("");
+  const [selectedEntity, setSelectedEntity] = useState<string | null>("ns-prod/q/orders");
+  const [selectedMessage, setSelectedMessage] = useState<ServiceBusMessage | null>(null);
 
-  async function greet() {
-    // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
-    setGreetMsg(await invoke("greet", { name }));
-  }
+  const messages = useMemo(() => getMessagesForEntity(selectedEntity), [selectedEntity]);
+
+  const handleEntitySelect = (entityId: string | null) => {
+    setSelectedEntity(entityId);
+    setSelectedMessage(null);
+  };
 
   return (
-    <main className="container">
-      <h1>Welcome to Tauri + React</h1>
+    <Box sx={{ display: "flex", flexDirection: "column", height: "100vh", bgcolor: "background.default" }}>
+      <AppBar position="static">
+        <Toolbar variant="dense" sx={{ gap: 1 }}>
+          <HubRoundedIcon color="primary" />
+          <Typography variant="h6" sx={{ fontWeight: 700 }}>
+            Service Bus Viewer
+          </Typography>
+          <Box sx={{ flexGrow: 1 }} />
+          <Button size="small" startIcon={<RefreshRoundedIcon />} color="inherit">
+            Refresh
+          </Button>
+          <Button size="small" variant="contained" startIcon={<AddLinkRoundedIcon />}>
+            Connect namespace
+          </Button>
+        </Toolbar>
+      </AppBar>
 
-      <div className="row">
-        <a href="https://vite.dev" target="_blank">
-          <img src="/vite.svg" className="logo vite" alt="Vite logo" />
-        </a>
-        <a href="https://tauri.app" target="_blank">
-          <img src="/tauri.svg" className="logo tauri" alt="Tauri logo" />
-        </a>
-        <a href="https://react.dev" target="_blank">
-          <img src={reactLogo} className="logo react" alt="React logo" />
-        </a>
-      </div>
-      <p>Click on the Tauri, Vite, and React logos to learn more.</p>
+      <Box sx={{ display: "flex", flexGrow: 1, minHeight: 0 }}>
+        {/* Left: namespace / entity tree */}
+        <Paper
+          square
+          elevation={0}
+          sx={{
+            width: LEFT_WIDTH,
+            flexShrink: 0,
+            borderRight: 1,
+            borderColor: "divider",
+            display: "flex",
+            flexDirection: "column",
+            minHeight: 0,
+          }}
+        >
+          <Box sx={{ px: 2, py: 1.5 }}>
+            <Typography variant="overline" color="text.secondary">
+              Namespaces
+            </Typography>
+          </Box>
+          <Divider />
+          <NamespaceTree namespaces={namespaces} selectedId={selectedEntity} onSelect={handleEntitySelect} />
+        </Paper>
 
-      <form
-        className="row"
-        onSubmit={(e) => {
-          e.preventDefault();
-          greet();
-        }}
-      >
-        <input
-          id="greet-input"
-          onChange={(e) => setName(e.currentTarget.value)}
-          placeholder="Enter a name..."
-        />
-        <button type="submit">Greet</button>
-      </form>
-      <p>{greetMsg}</p>
-    </main>
+        {/* Middle: message grid */}
+        <Box sx={{ flexGrow: 1, display: "flex", flexDirection: "column", minWidth: 0, minHeight: 0 }}>
+          <Box
+            sx={{
+              display: "flex",
+              alignItems: "center",
+              gap: 1,
+              px: 2,
+              py: 1.5,
+              borderBottom: 1,
+              borderColor: "divider",
+            }}
+          >
+            <Typography variant="subtitle1" noWrap>
+              {entityLabel(selectedEntity)}
+            </Typography>
+            <Chip size="small" label={`${messages.length} messages`} variant="outlined" sx={{ ml: 1 }} />
+          </Box>
+          <Box sx={{ flexGrow: 1, minHeight: 0 }}>
+            <MessageGrid
+              messages={messages}
+              selectedId={selectedMessage?.messageId ?? null}
+              onSelect={setSelectedMessage}
+            />
+          </Box>
+        </Box>
+
+        {/* Right: message properties */}
+        <Paper
+          square
+          elevation={0}
+          sx={{
+            width: RIGHT_WIDTH,
+            flexShrink: 0,
+            borderLeft: 1,
+            borderColor: "divider",
+            display: "flex",
+            flexDirection: "column",
+            minHeight: 0,
+          }}
+        >
+          <Box sx={{ px: 2, py: 1.5, borderBottom: 1, borderColor: "divider" }}>
+            <Typography variant="overline" color="text.secondary">
+              Message Details
+            </Typography>
+          </Box>
+          <Box sx={{ flexGrow: 1, minHeight: 0 }}>
+            <MessageDetails message={selectedMessage} />
+          </Box>
+        </Paper>
+      </Box>
+    </Box>
   );
 }
 
