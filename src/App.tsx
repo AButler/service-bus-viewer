@@ -7,6 +7,8 @@ import {
   Divider,
   IconButton,
   Paper,
+  ToggleButton,
+  ToggleButtonGroup,
   Toolbar,
   Tooltip,
   Typography,
@@ -17,6 +19,8 @@ import AddLinkRoundedIcon from "@mui/icons-material/AddLinkRounded";
 import RefreshRoundedIcon from "@mui/icons-material/RefreshRounded";
 import LightModeRoundedIcon from "@mui/icons-material/LightModeRounded";
 import DarkModeRoundedIcon from "@mui/icons-material/DarkModeRounded";
+import InboxRoundedIcon from "@mui/icons-material/InboxRounded";
+import ReportProblemRoundedIcon from "@mui/icons-material/ReportProblemRounded";
 import NamespaceTree from "./components/NamespaceTree";
 import MessageGrid from "./components/MessageGrid";
 import MessageDetails from "./components/MessageDetails";
@@ -74,17 +78,40 @@ function App() {
   const [selectedEntity, setSelectedEntity] = useState<string | null>(
     "queue:ns-prod/q/orders",
   );
+  const [messageView, setMessageView] = useState<"active" | "deadletter">(
+    "active",
+  );
   const [selectedMessage, setSelectedMessage] =
     useState<ServiceBusMessage | null>(null);
 
+  // Item ids are prefixed with their kind ("<kind>:<id>"); the dead-letter view
+  // reads from the entity's dead-letter sub-queue for the same underlying id.
+  const messageEntityId =
+    selectedEntity === null
+      ? null
+      : messageView === "deadletter"
+        ? `deadletter:${selectedEntity.slice(selectedEntity.indexOf(":") + 1)}`
+        : selectedEntity;
+
   const messages = useMemo(
-    () => getMessagesForEntity(selectedEntity),
-    [selectedEntity],
+    () => getMessagesForEntity(messageEntityId),
+    [messageEntityId],
   );
 
   const handleEntitySelect = (entityId: string | null) => {
     setSelectedEntity(entityId);
     setSelectedMessage(null);
+    setMessageView("active");
+  };
+
+  const handleViewChange = (
+    _event: React.MouseEvent<HTMLElement>,
+    value: "active" | "deadletter" | null,
+  ) => {
+    if (value !== null) {
+      setMessageView(value);
+      setSelectedMessage(null);
+    }
   };
 
   return (
@@ -179,6 +206,24 @@ function App() {
               variant="outlined"
               sx={{ ml: 1 }}
             />
+            <Box sx={{ flexGrow: 1 }} />
+            <ToggleButtonGroup
+              size="small"
+              exclusive
+              value={messageView}
+              onChange={handleViewChange}
+              disabled={selectedEntity === null}
+              aria-label="Message view"
+            >
+              <ToggleButton value="active" aria-label="Active messages">
+                <InboxRoundedIcon fontSize="small" sx={{ mr: 0.5 }} />
+                Messages
+              </ToggleButton>
+              <ToggleButton value="deadletter" aria-label="Dead-letter messages">
+                <ReportProblemRoundedIcon fontSize="small" sx={{ mr: 0.5 }} />
+                Dead-letter
+              </ToggleButton>
+            </ToggleButtonGroup>
           </Box>
           <Box sx={{ flexGrow: 1, minHeight: 0 }}>
             <MessageGrid

@@ -1,6 +1,11 @@
 // Domain types and mock data for the Service Bus viewer UI.
 
-export type EntityKind = "namespace" | "queue" | "topic" | "subscription";
+export type EntityKind =
+  | "namespace"
+  | "queue"
+  | "topic"
+  | "subscription"
+  | "deadletter";
 
 export interface SubscriptionNode {
   kind: "subscription";
@@ -208,7 +213,11 @@ const bodies = [
   ),
 ];
 
-function buildMessages(seed: number, count: number): ServiceBusMessage[] {
+function buildMessages(
+  seed: number,
+  count: number,
+  deadLetter = false,
+): ServiceBusMessage[] {
   const states: ServiceBusMessage["state"][] = [
     "Active",
     "Active",
@@ -223,6 +232,12 @@ function buildMessages(seed: number, count: number): ServiceBusMessage[] {
     "InventoryUpdated",
     "CustomerNotified",
   ];
+  const deadLetterReasons = [
+    "MaxDeliveryCountExceeded",
+    "TTLExpiredException",
+    "HeaderSizeExceeded",
+    "ApplicationError",
+  ];
   return Array.from({ length: count }, (_, i) => {
     const n = seed * 1000 + i;
     return {
@@ -231,11 +246,11 @@ function buildMessages(seed: number, count: number): ServiceBusMessage[] {
       subject: subjects[(seed + i) % subjects.length],
       contentType: "application/json",
       size: 512 + ((n * 37) % 4096),
-      deliveryCount: i % 4,
+      deliveryCount: deadLetter ? 10 : i % 4,
       enqueuedTime: new Date(
         Date.UTC(2026, 6, 13, 9, 0, 0) + n * 61_000,
       ).toISOString(),
-      state: states[(seed + i) % states.length],
+      state: deadLetter ? "DeadLetter" : states[(seed + i) % states.length],
       correlationId: `corr-${(seed + i) % 7}`,
       sessionId: i % 3 === 0 ? `session-${(seed + i) % 5}` : null,
       timeToLive: "14.00:00:00",
@@ -246,6 +261,14 @@ function buildMessages(seed: number, count: number): ServiceBusMessage[] {
         region: seed % 2 === 0 ? "uksouth" : "ukwest",
         priority: (i % 3) + 1,
         retryable: i % 2 === 0,
+        ...(deadLetter
+          ? {
+              DeadLetterReason:
+                deadLetterReasons[(seed + i) % deadLetterReasons.length],
+              DeadLetterErrorDescription:
+                "The message could not be processed and was dead-lettered.",
+            }
+          : {}),
       },
     };
   });
@@ -259,9 +282,10 @@ export function getMessagesForEntity(
 ): ServiceBusMessage[] {
   if (!entityId) return [];
   if (!messageCache.has(entityId)) {
+    const isDeadLetter = entityId.startsWith("deadletter:");
     const seed = Math.abs(hashString(entityId)) % 20;
     const count = 8 + (seed % 25);
-    messageCache.set(entityId, buildMessages(seed + 1, count));
+    messageCache.set(entityId, buildMessages(seed + 1, count, isDeadLetter));
   }
   return messageCache.get(entityId)!;
 }
