@@ -9,7 +9,11 @@ import WindowControls from "./WindowControls";
 export default function TopBar() {
   return (
     <AppBar position="static">
-      <Toolbar variant="dense" sx={{ gap: 1 }} data-tauri-drag-region>
+      <Toolbar
+        variant="dense"
+        sx={{ gap: 1, cursor: "default", userSelect: "none" }}
+        data-tauri-drag-region
+      >
         <AppIcon size={26} />
         <Typography
           variant="h6"
