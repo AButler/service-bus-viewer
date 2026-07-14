@@ -12,8 +12,10 @@ import type {
   SBQueue,
   SBSubscription,
   SBTopic,
+  ServiceBusApi,
   ServiceBusReceivedMessage,
 } from "./types";
+import type { NamespaceConnection } from "../lib/connectionStore";
 
 // --- Raw seed data (would be the real Azure resources in production) ----------
 
@@ -145,74 +147,7 @@ function resolveEntity(
   return ns.queues.find((q) => q.name === entityPath);
 }
 
-// --- Management-plane operations ---------------------------------------------
-
-export async function mockListQueues(
-  namespaceName: string,
-): Promise<SBQueue[]> {
-  await delay(latency(`queues:${namespaceName}`));
-  const ns = sampleFor(namespaceName);
-  return ns.queues.map((q) => ({
-    id: `${namespaceResourceId(namespaceName)}/queues/${q.name}`,
-    name: q.name,
-    type: "Microsoft.ServiceBus/Namespaces/Queues",
-    properties: {
-      countDetails: countDetails(q.active, q.dead),
-      messageCount: q.active + q.dead,
-      status: "Active",
-      maxDeliveryCount: 10,
-      requiresSession: false,
-      requiresDuplicateDetection: false,
-    },
-  }));
-}
-
-export async function mockListTopics(
-  namespaceName: string,
-): Promise<SBTopic[]> {
-  await delay(latency(`topics:${namespaceName}`));
-  const ns = sampleFor(namespaceName);
-  return ns.topics.map((t) => {
-    const active = t.subscriptions.reduce((sum, s) => sum + s.active, 0);
-    const dead = t.subscriptions.reduce((sum, s) => sum + s.dead, 0);
-    return {
-      id: `${namespaceResourceId(namespaceName)}/topics/${t.name}`,
-      name: t.name,
-      type: "Microsoft.ServiceBus/Namespaces/Topics",
-      properties: {
-        countDetails: countDetails(active, dead),
-        subscriptionCount: t.subscriptions.length,
-        status: "Active",
-      },
-    };
-  });
-}
-
-export async function mockListSubscriptions(
-  namespaceName: string,
-  topicName: string,
-): Promise<SBSubscription[]> {
-  await delay(latency(`subs:${namespaceName}:${topicName}`));
-  const topic = sampleFor(namespaceName).topics.find(
-    (t) => t.name === topicName,
-  );
-  if (!topic) return [];
-  return topic.subscriptions.map((s) => ({
-    id:
-      `${namespaceResourceId(namespaceName)}/topics/${topicName}` +
-      `/subscriptions/${s.name}`,
-    name: s.name,
-    type: "Microsoft.ServiceBus/Namespaces/Topics/Subscriptions",
-    properties: {
-      countDetails: countDetails(s.active, s.dead),
-      messageCount: s.active + s.dead,
-      status: "Active",
-      maxDeliveryCount: 10,
-    },
-  }));
-}
-
-// --- Data-plane operations ----------------------------------------------------
+// --- Data-plane message generation --------------------------------------------
 
 const subjects = [
   "OrderCreated",
@@ -310,10 +245,11 @@ function buildMessage(
   };
 }
 
-export async function mockPeekMessages(
+async function mockPeekMessages(
+  namespaceName: string,
   params: PeekMessagesParams,
 ): Promise<PagedResult<ServiceBusReceivedMessage>> {
-  const { namespaceName, entityPath, subQueue, skip, top } = params;
+  const { entityPath, subQueue, skip, top } = params;
   await delay(latency(`peek:${namespaceName}:${entityPath}:${subQueue}`));
 
   const entity = resolveEntity(namespaceName, entityPath);
@@ -333,4 +269,96 @@ export async function mockPeekMessages(
     totalCount,
     nextSkip: end < totalCount ? end : null,
   };
+}
+
+async function mockListQueues(namespaceName: string): Promise<SBQueue[]> {
+  await delay(latency(`queues:${namespaceName}`));
+  const ns = sampleFor(namespaceName);
+  return ns.queues.map((q) => ({
+    id: `${namespaceResourceId(namespaceName)}/queues/${q.name}`,
+    name: q.name,
+    type: "Microsoft.ServiceBus/Namespaces/Queues",
+    properties: {
+      countDetails: countDetails(q.active, q.dead),
+      messageCount: q.active + q.dead,
+      status: "Active",
+      maxDeliveryCount: 10,
+      requiresSession: false,
+      requiresDuplicateDetection: false,
+    },
+  }));
+}
+
+async function mockListTopics(namespaceName: string): Promise<SBTopic[]> {
+  await delay(latency(`topics:${namespaceName}`));
+  const ns = sampleFor(namespaceName);
+  return ns.topics.map((t) => {
+    const active = t.subscriptions.reduce((sum, s) => sum + s.active, 0);
+    const dead = t.subscriptions.reduce((sum, s) => sum + s.dead, 0);
+    return {
+      id: `${namespaceResourceId(namespaceName)}/topics/${t.name}`,
+      name: t.name,
+      type: "Microsoft.ServiceBus/Namespaces/Topics",
+      properties: {
+        countDetails: countDetails(active, dead),
+        subscriptionCount: t.subscriptions.length,
+        status: "Active",
+      },
+    };
+  });
+}
+
+async function mockListSubscriptions(
+  namespaceName: string,
+  topicName: string,
+): Promise<SBSubscription[]> {
+  await delay(latency(`subs:${namespaceName}:${topicName}`));
+  const topic = sampleFor(namespaceName).topics.find(
+    (t) => t.name === topicName,
+  );
+  if (!topic) return [];
+  return topic.subscriptions.map((s) => ({
+    id:
+      `${namespaceResourceId(namespaceName)}/topics/${topicName}` +
+      `/subscriptions/${s.name}`,
+    name: s.name,
+    type: "Microsoft.ServiceBus/Namespaces/Topics/Subscriptions",
+    properties: {
+      countDetails: countDetails(s.active, s.dead),
+      messageCount: s.active + s.dead,
+      status: "Active",
+      maxDeliveryCount: 10,
+    },
+  }));
+}
+
+/**
+ * Mock `ServiceBusApi` bound to a namespace, backed by a sample dataset. Used in
+ * the browser (Service Bus is CORS-blocked there) and whenever the real client
+ * isn't available. Simulates network latency so loading states are exercised.
+ */
+export class MockServiceBusClient implements ServiceBusApi {
+  private readonly namespaceName: string;
+
+  constructor(connection: NamespaceConnection) {
+    this.namespaceName = connection.friendlyName;
+  }
+
+  listQueues(): Promise<SBQueue[]> {
+    return mockListQueues(this.namespaceName);
+  }
+
+  listTopics(): Promise<SBTopic[]> {
+    return mockListTopics(this.namespaceName);
+  }
+
+  listSubscriptions(topicName: string): Promise<SBSubscription[]> {
+    return mockListSubscriptions(this.namespaceName, topicName);
+  }
+
+  peekMessages(
+    params: PeekMessagesParams,
+  ): Promise<PagedResult<ServiceBusReceivedMessage>> {
+    return mockPeekMessages(this.namespaceName, params);
+  }
 }

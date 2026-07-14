@@ -97,9 +97,7 @@ export default function ConnectionDialog({
     <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
       <DialogTitle>Connect namespace</DialogTitle>
       <DialogContent>
-        <Box
-          sx={{ display: "flex", flexDirection: "column", gap: 2, pt: 1 }}
-        >
+        <Box sx={{ display: "flex", flexDirection: "column", gap: 2, pt: 1 }}>
           <TextField
             label="Friendly name"
             value={fields.friendlyName}

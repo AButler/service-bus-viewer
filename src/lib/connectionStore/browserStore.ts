@@ -99,7 +99,10 @@ export const browserConnectionStore: ConnectionStore = {
   },
 
   async add(draft: NamespaceConnectionDraft) {
-    const connection: NamespaceConnection = { ...draft, id: crypto.randomUUID() };
+    const connection: NamespaceConnection = {
+      ...draft,
+      id: crypto.randomUUID(),
+    };
     const stored = await readAll();
     stored.push(await toStored(connection));
     await writeAll(stored);

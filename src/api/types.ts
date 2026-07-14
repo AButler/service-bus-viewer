@@ -116,3 +116,17 @@ export interface PagedResult<T> {
   totalCount: number;
   nextSkip: number | null;
 }
+
+/**
+ * Operations for a single namespace, implemented by both the real Azure client
+ * (`ServiceBusClient`) and the mock (`MockServiceBusClient`). Resolve one with
+ * `useServiceBusClient(connection)`.
+ */
+export interface ServiceBusApi {
+  listQueues(): Promise<SBQueue[]>;
+  listTopics(): Promise<SBTopic[]>;
+  listSubscriptions(topicName: string): Promise<SBSubscription[]>;
+  peekMessages(
+    params: PeekMessagesParams,
+  ): Promise<PagedResult<ServiceBusReceivedMessage>>;
+}

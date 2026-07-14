@@ -1,19 +1,20 @@
 import { describe, it, expect } from "vitest";
-import { listNamespaces, listQueues, peekMessages } from "./serviceBusClient";
+import { listNamespaces, useServiceBusClient } from "./useServiceBusClient";
 import type { NamespaceConnection } from "../lib/connectionStore";
 
-const connections: NamespaceConnection[] = [
-  {
-    id: "1",
-    friendlyName: "contoso-prod",
-    serviceBusEndpoint: "sb://contoso-prod.servicebus.windows.net/",
-    auth: { kind: "sas", keyName: "RootManageSharedAccessKey", key: "secret" },
-  },
-];
+const connection: NamespaceConnection = {
+  id: "1",
+  friendlyName: "contoso-prod",
+  serviceBusEndpoint: "sb://contoso-prod.servicebus.windows.net/",
+  auth: { kind: "sas", keyName: "RootManageSharedAccessKey", key: "secret" },
+};
+
+// In jsdom `isTauri()` is false, so the factory returns the mock client.
+const client = useServiceBusClient(connection);
 
 describe("listNamespaces", () => {
   it("maps configured connections to namespaces", async () => {
-    const namespaces = await listNamespaces(connections);
+    const namespaces = await listNamespaces([connection]);
     expect(namespaces.map((n) => n.name)).toEqual(["contoso-prod"]);
     expect(namespaces[0].properties.serviceBusEndpoint).toBe(
       "sb://contoso-prod.servicebus.windows.net/",
@@ -27,7 +28,7 @@ describe("listNamespaces", () => {
 
 describe("listQueues", () => {
   it("returns queues with their count details", async () => {
-    const queues = await listQueues("contoso-prod");
+    const queues = await client.listQueues();
     expect(queues.map((q) => q.name)).toEqual([
       "orders",
       "payments",
@@ -41,7 +42,7 @@ describe("listQueues", () => {
 
 describe("peekMessages (active)", () => {
   it("pages against the active count", async () => {
-    const page = await peekMessages({
+    const page = await client.peekMessages({
       namespaceName: "contoso-prod",
       entityPath: "orders",
       subQueue: "main",
@@ -53,7 +54,7 @@ describe("peekMessages (active)", () => {
   });
 
   it("assigns unique, increasing sequence numbers", async () => {
-    const page = await peekMessages({
+    const page = await client.peekMessages({
       namespaceName: "contoso-prod",
       entityPath: "orders",
       subQueue: "main",
@@ -69,7 +70,7 @@ describe("peekMessages (active)", () => {
 
   it("enqueues every message in the past, increasing with sequence number", async () => {
     const now = Date.now();
-    const page = await peekMessages({
+    const page = await client.peekMessages({
       namespaceName: "contoso-prod",
       entityPath: "orders",
       subQueue: "main",
@@ -87,7 +88,7 @@ describe("peekMessages (active)", () => {
   });
 
   it("includes messages without a subject and some larger than 1 KB", async () => {
-    const page = await peekMessages({
+    const page = await client.peekMessages({
       namespaceName: "contoso-prod",
       entityPath: "orders",
       subQueue: "main",
@@ -103,7 +104,7 @@ describe("peekMessages (active)", () => {
 
 describe("peekMessages (dead-letter)", () => {
   it("pages against the dead-letter count and flags each message", async () => {
-    const page = await peekMessages({
+    const page = await client.peekMessages({
       namespaceName: "contoso-prod",
       entityPath: "orders",
       subQueue: "deadletter",

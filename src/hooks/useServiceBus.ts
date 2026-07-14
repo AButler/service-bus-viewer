@@ -1,15 +1,13 @@
-// React Query hooks wrapping the mock Service Bus API. Query keys mirror the
+// React Query hooks wrapping the Service Bus API. Query keys mirror the
 // resource hierarchy so caching and invalidation behave predictably.
 
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
+import type { NamespaceConnection } from "../lib/connectionStore";
+import type { PeekMessagesParams } from "../api/types";
 import {
   listNamespaces,
-  listQueues,
-  listSubscriptions,
-  listTopics,
-  peekMessages,
-  type PeekMessagesParams,
-} from "../api/serviceBusClient";
+  useServiceBusClient,
+} from "../api/useServiceBusClient";
 import { useConnections } from "./useConnections";
 
 export function useNamespaces() {
@@ -21,19 +19,27 @@ export function useNamespaces() {
   });
 }
 
+// Resolve the stored connection backing a namespace (by friendly name).
+function useConnection(namespaceName: string): NamespaceConnection | undefined {
+  const connections = useConnections();
+  return connections.data?.find((c) => c.friendlyName === namespaceName);
+}
+
 export function useQueues(namespaceName: string, enabled: boolean) {
+  const connection = useConnection(namespaceName);
   return useQuery({
     queryKey: ["queues", namespaceName],
-    queryFn: () => listQueues(namespaceName),
-    enabled,
+    queryFn: () => useServiceBusClient(connection!).listQueues(),
+    enabled: enabled && connection !== undefined,
   });
 }
 
 export function useTopics(namespaceName: string, enabled: boolean) {
+  const connection = useConnection(namespaceName);
   return useQuery({
     queryKey: ["topics", namespaceName],
-    queryFn: () => listTopics(namespaceName),
-    enabled,
+    queryFn: () => useServiceBusClient(connection!).listTopics(),
+    enabled: enabled && connection !== undefined,
   });
 }
 
@@ -42,18 +48,21 @@ export function useSubscriptions(
   topicName: string,
   enabled: boolean,
 ) {
+  const connection = useConnection(namespaceName);
   return useQuery({
     queryKey: ["subscriptions", namespaceName, topicName],
-    queryFn: () => listSubscriptions(namespaceName, topicName),
-    enabled,
+    queryFn: () =>
+      useServiceBusClient(connection!).listSubscriptions(topicName),
+    enabled: enabled && connection !== undefined,
   });
 }
 
 export function useMessages(params: PeekMessagesParams | null) {
+  const connection = useConnection(params?.namespaceName ?? "");
   return useQuery({
     queryKey: ["messages", params],
-    queryFn: () => peekMessages(params!),
-    enabled: params !== null,
+    queryFn: () => useServiceBusClient(connection!).peekMessages(params!),
+    enabled: params !== null && connection !== undefined,
     placeholderData: keepPreviousData,
   });
 }

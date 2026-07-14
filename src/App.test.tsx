@@ -92,8 +92,7 @@ describe("App routing", () => {
     it("redirects to the owning queue when the message is not found", async () => {
       renderApp("/contoso-prod/queues/orders/messages/99999999");
       await waitFor(
-        () =>
-          expect(currentPath).toBe("/contoso-prod/queues/orders/messages"),
+        () => expect(currentPath).toBe("/contoso-prod/queues/orders/messages"),
         { timeout: 4000 },
       );
     });

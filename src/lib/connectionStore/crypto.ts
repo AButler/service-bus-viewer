@@ -44,7 +44,11 @@ export async function encryptString(plaintext: string): Promise<EncryptedBlob> {
   const key = await getKey();
   const iv = crypto.getRandomValues(new Uint8Array(12));
   const encoded = new TextEncoder().encode(plaintext);
-  const buffer = await crypto.subtle.encrypt({ name: "AES-GCM", iv }, key, encoded);
+  const buffer = await crypto.subtle.encrypt(
+    { name: "AES-GCM", iv },
+    key,
+    encoded,
+  );
   return { iv: toBase64(iv), data: toBase64(new Uint8Array(buffer)) };
 }
 

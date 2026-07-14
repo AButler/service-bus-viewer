@@ -50,9 +50,10 @@ reporter).
 ```
 src/
   api/
-    types.ts               # Azure-SDK-shaped types (SBNamespace, SBQueue, ... , ServiceBusReceivedMessage)
-    serviceBusClient.ts    # Public client: real Azure (Tauri/SAS) vs mock dispatch
-    mockServiceBusClient.ts# Mock API: async funcs w/ simulated latency + paging
+    types.ts               # Azure-SDK-shaped types + ServiceBusApi interface
+    serviceBusClient.ts    # ServiceBusClient class (real Azure SDK; Tauri only)
+    mockServiceBusClient.ts# MockServiceBusClient class (latency + paging + sample data)
+    useServiceBusClient.ts # Factory (real vs mock by isTauri) + listNamespaces
   hooks/
     useServiceBus.ts       # React Query hooks (useNamespaces/useQueues/useTopics/useSubscriptions/useMessages)
     useConnections.ts      # useConnections + useConnectionMutations (config store)
@@ -93,8 +94,9 @@ selection from the URL and renders `NamespacesPanel`, `MessagesPanel`, and
 ## Data layer (IMPORTANT)
 
 - **Never fetch data directly in components.** Add/extend a hook in
-  `src/hooks/useServiceBus.ts`, which wraps functions in
-  `src/api/serviceBusClient.ts`. Hooks take an `enabled` flag for lazy loading.
+  `src/hooks/useServiceBus.ts`, which resolves the namespace's connection and
+  calls a client from `useServiceBusClient(connection)`. Hooks take an `enabled`
+  flag for lazy loading (and stay disabled until the connection resolves).
 - The mock client returns data in the **same shape as the Azure SDKs**
   (management plane `@azure/arm-servicebus`: `SBQueue.properties.countDetails`,
   etc.; data plane `@azure/service-bus`: `ServiceBusReceivedMessage`). Keep it
@@ -113,9 +115,10 @@ selection from the URL and renders `NamespacesPanel`, `MessagesPanel`, and
   the past and increases with `sequenceNumber`**. Preserve these when editing the
   mock.
 - Namespaces come from the **user's configured connections** (see below):
-  `listNamespaces(connections)` maps each connection to an `SBNamespace`, and
-  `sampleFor(name)` backs any namespace name with one of the 3 sample datasets
-  (exact name match reuses it, otherwise hash-assigned).
+  `listNamespaces(connections)` (in `useServiceBusClient.ts`) maps each
+  connection to an `SBNamespace`, and `sampleFor(name)` backs any namespace name
+  with one of the 3 sample datasets (exact name match reuses it, otherwise
+  hash-assigned).
 
 ## Connections / configuration store (`lib/connectionStore/`)
 
@@ -142,27 +145,37 @@ until the user adds one ("Connect namespace").
 
 ## Real vs mock data
 
-`serviceBusClient.ts` is the public client and exports
-`listNamespaces/listQueues/listTopics/listSubscriptions/peekMessages`. The
-per-entity calls **dispatch**: they resolve the `NamespaceConnection` (by
-friendly name from the store) and use the **real** Azure implementation only
-when `isTauri()` and the connection is SAS; otherwise the mock in
-`mockServiceBusClient.ts`. `@azure/service-bus` is imported **lazily inside the
-real functions** so it is never bundled for the browser (which also needs the
-Node polyfills from `vite-plugin-node-polyfills` + `global`/`process`/`Buffer`).
+Both clients implement a shared **`ServiceBusApi`** interface (in
+`api/types.ts`): a per-namespace client with `listQueues()`, `listTopics()`,
+`listSubscriptions(topicName)`, and `peekMessages(params)`.
+`serviceBusClient.ts` exports the `ServiceBusClient` class (real Azure SDK) and
+`mockServiceBusClient.ts` exports the `MockServiceBusClient` class (sample data
+
+- simulated latency). Each client stores the state it needs — the real client
+  holds the `NamespaceConnection` (auth); the mock holds the namespace name.
+
+`useServiceBusClient.ts` is the entry module used by the hooks. It exports the
+**factory `useServiceBusClient(connection)`**, which returns a `ServiceBusClient`
+whenever `isTauri()` and a `MockServiceBusClient` otherwise, plus
+`listNamespaces(connections)`. A non-SAS (Entra) connection still gets the real
+client in Tauri, which throws an "Entra not supported" error when a list/peek
+call is made. `@azure/service-bus` is imported **lazily inside the real client's
+methods** so it is never bundled for the browser (which also needs the Node
+polyfills from `vite-plugin-node-polyfills` + `global`/`process`/`Buffer`).
 
 - Real management (list + counts) uses `ServiceBusAdministrationClient` over HTTPS.
   The webview blocks that with CORS, so at startup `installTauriHttp()`
   (`lib/tauriHttp.ts`, invoked from `main.tsx`) replaces `globalThis.fetch` with
   the Tauri HTTP plugin's fetch (Rust networking) for **all** traffic — Service
   Bus endpoints aren't always `*.servicebus.windows.net` (sovereign clouds,
-  private endpoints). This is transparent to `serviceBusClient.ts`. Peek uses
+  private endpoints). This is transparent to the clients. Peek uses
   `ServiceBusClient` receivers (AMQP/WebSocket), with `subQueueType: "deadLetter"`
   for dead-letters.
 - **Browser can't reach Service Bus** (CORS), so the browser dev server always
   uses the mock. Real data only works in the Tauri build; the `http:default`
   capability allows `https://**` / `http://**`.
-- **Entra is not supported** by the real client yet (throws); SAS only.
+- **Entra is not supported** by the real client yet: the connection is accepted
+  and the real client is used, but list/peek calls throw "Entra not supported".
 - Peek is cursor-based, so paging currently peeks `skip + top` and slices — fine
   for early pages; revisit for deep pagination.
 
@@ -306,7 +319,7 @@ side is wired in `src-tauri/Cargo.toml`, `src-tauri/src/lib.rs`, and the
   in `src/test/setup.ts`.
 - Tests are colocated as `*.test.ts(x)`. Pure modules (`selectionRoute`,
   `propertyFormatters`, `namespace`, `bodyRenderers`, `messageDetails/properties`,
-  `serviceBusClient`) have unit tests; `App.test.tsx` covers routing, deep-link
+  `useServiceBusClient`) have unit tests; `App.test.tsx` covers routing, deep-link
   restore, and the redirect rules by rendering `App` in a `MemoryRouter`.
 - Import test globals explicitly from `vitest` (config uses `globals: false`).
 - Add/extend tests for non-trivial logic; run `npm test` before finishing.
