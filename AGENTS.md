@@ -26,6 +26,10 @@ real thing without touching the UI or hooks.
 - **react-json-view-lite** for JSON body rendering
 - `@fontsource/inter` for the Inter font
 - **Tauri plugins:** `@tauri-apps/plugin-opener` (open links), `@tauri-apps/plugin-clipboard-manager` (copy), `@tauri-apps/plugin-http` (real Azure admin calls)
+- **Custom titlebar:** the window runs with `decorations: false`; `TopBar` is the
+  drag region (`data-tauri-drag-region`) and renders `WindowControls`
+  (min/max/close via `@tauri-apps/api/window`) only when `isTauri()`. Requires the
+  `core:window:allow-minimize/-close/-toggle-maximize/-start-dragging` permissions.
 - **Azure:** `@azure/service-bus` (real client, Tauri-only — see Real vs mock data)
 - **Testing:** Vitest + Testing Library (jsdom)
 
@@ -78,6 +82,7 @@ src/
     NamespacesHeader.tsx   # "Namespaces" overline + hover actions + menu
     ResizeHandle.tsx       # Draggable divider between panels
     TopBar.tsx / AppIcon.tsx / AboutButton.tsx / ColorModeToggle.tsx
+    WindowControls.tsx     # Tauri custom-titlebar min/max/close buttons
   theme.ts                 # MUI theme (colorSchemes light/dark, cssVariables)
   App.tsx                  # Layout + selection/routing coordination
   main.tsx                 # Providers: QueryClientProvider + ThemeProvider + BrowserRouter
