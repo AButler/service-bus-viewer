@@ -1,6 +1,6 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "service-bus-viewer",
+  "productName": "Service Bus Viewer",
   "version": "0.1.0",
   "identifier": "com.webbutler.service-bus-viewer",
   "build": {
@@ -12,9 +12,9 @@
   "app": {
     "windows": [
       {
-        "title": "service-bus-viewer",
-        "width": 800,
-        "height": 600,
+        "title": "Service Bus Viewer",
+        "width": 1200,
+        "height": 800,
         "decorations": false
       }
     ],

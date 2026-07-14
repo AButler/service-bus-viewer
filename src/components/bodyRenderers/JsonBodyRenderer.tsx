@@ -9,6 +9,7 @@ import {
 } from "react-json-view-lite";
 import "react-json-view-lite/dist/index.css";
 import PlainTextBodyRenderer from "./PlainTextBodyRenderer";
+import { MONO_FONT_FAMILY } from "../../lib/fonts";
 import type { BodyRendererProps } from "./types";
 
 /**
@@ -41,7 +42,7 @@ export default function JsonBodyRenderer({
   return (
     <Box
       sx={{
-        fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace",
+        fontFamily: MONO_FONT_FAMILY,
         fontSize: "0.78rem",
         // Keep the enclosing braces but disallow collapsing the root node by
         // hiding its expander chevron (nested nodes keep their own).

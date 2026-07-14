@@ -3,7 +3,13 @@ import { Box, IconButton, Paper, Tooltip, Typography } from "@mui/material";
 import KeyboardArrowDownRoundedIcon from "@mui/icons-material/KeyboardArrowDownRounded";
 import DeleteSweepRoundedIcon from "@mui/icons-material/DeleteSweepRounded";
 import ResizeHandle from "./ResizeHandle";
-import { clearLogs, useLogs, type LogEntry, type LogLevel } from "../lib/logStore";
+import { MONO_FONT_FAMILY } from "../lib/fonts";
+import {
+  clearLogs,
+  useLogs,
+  type LogEntry,
+  type LogLevel,
+} from "../lib/logStore";
 
 interface LogsPanelProps {
   height: number;
@@ -77,7 +83,10 @@ export default function LogsPanel({
     total,
     start + Math.ceil(viewportHeight / ROW_HEIGHT) + OVERSCAN * 2,
   );
-  const visible = useMemo(() => entries.slice(start, end), [entries, start, end]);
+  const visible = useMemo(
+    () => entries.slice(start, end),
+    [entries, start, end],
+  );
 
   const handleScroll = (event: React.UIEvent<HTMLDivElement>) => {
     const el = event.currentTarget;
@@ -147,7 +156,7 @@ export default function LogsPanel({
           flexGrow: 1,
           minHeight: 0,
           overflowY: "auto",
-          fontFamily: "monospace",
+          fontFamily: MONO_FONT_FAMILY,
           fontSize: 12,
           bgcolor: "action.hover",
         }}
