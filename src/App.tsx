@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
-import { Box, Paper } from "@mui/material";
+import { Box, IconButton, Paper, Tooltip } from "@mui/material";
+import ArticleOutlinedIcon from "@mui/icons-material/ArticleOutlined";
 import type { GridPaginationModel } from "@mui/x-data-grid";
 import { useIsFetching, useQueryClient } from "@tanstack/react-query";
 import { useLocation, useNavigate } from "react-router-dom";
@@ -11,6 +12,7 @@ import TopBar from "./components/TopBar";
 import NamespacesPanel from "./components/NamespacesPanel";
 import MessagesPanel from "./components/MessagesPanel";
 import ConnectionDialog from "./components/ConnectionDialog";
+import LogsPanel from "./components/LogsPanel";
 import {
   useMessages,
   useNamespaces,
@@ -46,6 +48,9 @@ const MAX_LEFT_WIDTH = 560;
 const MIN_RIGHT_WIDTH = 300;
 const MAX_RIGHT_WIDTH = 640;
 const DEFAULT_PAGE_SIZE = 50;
+const DEFAULT_LOGS_HEIGHT = 220;
+const MIN_LOGS_HEIGHT = 120;
+const MAX_LOGS_HEIGHT = 480;
 
 function App() {
   const navigate = useNavigate();
@@ -65,6 +70,8 @@ function App() {
   const [rightWidth, setRightWidth] = useState(DEFAULT_RIGHT_WIDTH);
   const [expandedItems, setExpandedItems] = useState<string[]>([]);
   const [connectOpen, setConnectOpen] = useState(false);
+  const [logsOpen, setLogsOpen] = useState(false);
+  const [logsHeight, setLogsHeight] = useState(DEFAULT_LOGS_HEIGHT);
 
   const queryClient = useQueryClient();
   const namespacesQuery = useNamespaces();
@@ -291,6 +298,7 @@ function App() {
         flexDirection: "column",
         height: "100vh",
         bgcolor: "background.default",
+        position: "relative",
       }}
     >
       <TopBar />
@@ -365,6 +373,37 @@ function App() {
           </Box>
         </Paper>
       </Box>
+
+      {logsOpen ? (
+        <LogsPanel
+          height={logsHeight}
+          minHeight={MIN_LOGS_HEIGHT}
+          maxHeight={MAX_LOGS_HEIGHT}
+          onHeightChange={setLogsHeight}
+          onClose={() => setLogsOpen(false)}
+        />
+      ) : (
+        <Tooltip title="View Logs" placement="right">
+          <Paper
+            elevation={3}
+            sx={{
+              position: "absolute",
+              left: 8,
+              bottom: 8,
+              borderRadius: "50%",
+              zIndex: (theme) => theme.zIndex.fab,
+            }}
+          >
+            <IconButton
+              size="small"
+              aria-label="View Logs"
+              onClick={() => setLogsOpen(true)}
+            >
+              <ArticleOutlinedIcon fontSize="small" />
+            </IconButton>
+          </Paper>
+        </Tooltip>
+      )}
 
       <ConnectionDialog
         open={connectOpen}

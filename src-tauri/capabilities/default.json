@@ -13,6 +13,7 @@
     "clipboard-manager:allow-write-text",
     "oauth:allow-start",
     "oauth:allow-cancel",
+    "log:default",
     {
       "identifier": "http:default",
       "allow": [{ "url": "https://**" }, { "url": "http://**" }]

@@ -58,6 +58,7 @@ export default function Section({
       }}
     >
       <AccordionSummary
+        component="div"
         expandIcon={<ExpandMoreRoundedIcon fontSize="small" />}
         onMouseEnter={() => setHovered(true)}
         onMouseLeave={() => setHovered(false)}

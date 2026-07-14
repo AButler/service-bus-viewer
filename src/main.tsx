@@ -7,6 +7,7 @@ import { BrowserRouter } from "react-router-dom";
 import App from "./App";
 import theme from "./theme";
 import { installTauriHttp } from "./lib/tauriHttp";
+import { initLogging } from "./lib/logStore";
 import "@fontsource/inter/400.css";
 import "@fontsource/inter/500.css";
 import "@fontsource/inter/600.css";
@@ -36,5 +37,7 @@ function renderApp() {
   );
 }
 
-// Install the Tauri HTTP transport before rendering so data calls go through it.
+// Forward console output to the log store/plugin, then install the Tauri HTTP
+// transport before rendering so data calls go through it.
+initLogging();
 installTauriHttp().finally(renderApp);

@@ -1,7 +1,12 @@
 // React Query hooks wrapping the Service Bus API. Query keys mirror the
 // resource hierarchy so caching and invalidation behave predictably.
 
-import { keepPreviousData, skipToken, useQuery } from "@tanstack/react-query";
+import { useSyncExternalStore } from "react";
+import {
+  keepPreviousData,
+  useQuery,
+  useQueryClient,
+} from "@tanstack/react-query";
 import type { NamespaceConnection } from "../lib/connectionStore";
 import type { PeekMessagesParams } from "../api/types";
 import {
@@ -20,20 +25,21 @@ export function useNamespaces() {
 }
 
 /**
- * Whether a namespace has been queried successfully at least once, by passively
- * observing its cached queues/topics queries (`skipToken` never fetches). Used
- * to show a "connected" indicator once the tree has been expanded.
+ * Whether a namespace has been queried successfully at least once. Reads the
+ * query cache directly (via a cache subscription) rather than registering its
+ * own query, so it never interferes with fetching/refetching. Used to show a
+ * "connected" indicator once the tree has been expanded.
  */
 export function useNamespaceConnected(namespaceName: string): boolean {
-  const queues = useQuery({
-    queryKey: ["queues", namespaceName],
-    queryFn: skipToken,
-  });
-  const topics = useQuery({
-    queryKey: ["topics", namespaceName],
-    queryFn: skipToken,
-  });
-  return queues.isSuccess || topics.isSuccess;
+  const queryClient = useQueryClient();
+  return useSyncExternalStore(
+    (onChange) => queryClient.getQueryCache().subscribe(onChange),
+    () =>
+      queryClient.getQueryState(["queues", namespaceName])?.status ===
+        "success" ||
+      queryClient.getQueryState(["topics", namespaceName])?.status ===
+        "success",
+  );
 }
 
 // Resolve the stored connection backing a namespace (by friendly name).

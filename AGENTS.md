@@ -25,7 +25,7 @@ real thing without touching the UI or hooks.
 - **date-fns** — relative time in the date/time formatter
 - **react-json-view-lite** for JSON body rendering
 - `@fontsource/inter` for the Inter font
-- **Tauri plugins:** `@tauri-apps/plugin-opener` (open links), `@tauri-apps/plugin-clipboard-manager` (copy), `@tauri-apps/plugin-http` (real Azure admin calls), `@fabianlars/tauri-plugin-oauth` (loopback server for Entra sign-in)
+- **Tauri plugins:** `@tauri-apps/plugin-opener` (open links), `@tauri-apps/plugin-clipboard-manager` (copy), `@tauri-apps/plugin-http` (real Azure admin calls), `@fabianlars/tauri-plugin-oauth` (loopback server for Entra sign-in), `@tauri-apps/plugin-log` (session logs)
 - **Custom titlebar:** the window runs with `decorations: false`; `TopBar` is the
   drag region (`data-tauri-drag-region`) and renders `WindowControls`
   (min/max/close via `@tauri-apps/api/window`) only when `isTauri()`. Requires the
@@ -66,6 +66,7 @@ src/
     namespace.ts           # deriveNamespaceHost(serviceBusEndpoint)
     clipboard.ts           # copyText() — Tauri plugin w/ browser fallback
     tauriHttp.ts           # startup: route fetch through the Tauri HTTP plugin
+    logStore.ts            # console forwarding + bounded session log buffer
     connectionStore/       # User's namespace connections (config + secrets)
   components/
     NamespacesPanel.tsx    # Left panel wrapper (header + tree + connect button)
@@ -81,6 +82,7 @@ src/
     propertyFormatters/    # Property value formatter registry (see below)
     NamespacesHeader.tsx   # "Namespaces" overline + hover actions + menu
     ResizeHandle.tsx       # Draggable divider between panels
+    LogsPanel.tsx          # Bottom tool window: virtualised session log viewer
     TopBar.tsx / AppIcon.tsx / AboutButton.tsx / ColorModeToggle.tsx
     WindowControls.tsx     # Tauri custom-titlebar min/max/close buttons
   theme.ts                 # MUI theme (colorSchemes light/dark, cssVariables)

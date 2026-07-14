@@ -16,9 +16,38 @@ import { ServiceBusClient } from "./serviceBusClient";
 export function useServiceBusClient(
   connection: NamespaceConnection,
 ): ServiceBusApi {
-  return isTauri()
-    ? new ServiceBusClient(connection)
-    : new MockServiceBusClient(connection);
+  if (!isTauri()) return new MockServiceBusClient(connection);
+  return withLogging(new ServiceBusClient(connection), connection.friendlyName);
+}
+
+// Wrap a client so each API call (and any failure) is logged to the session log.
+function withLogging(client: ServiceBusApi, namespace: string): ServiceBusApi {
+  const run = async <R>(op: string, call: () => Promise<R>): Promise<R> => {
+    console.info(`[Service Bus] ${namespace}: ${op}`);
+    try {
+      return await call();
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      console.error(`[Service Bus] ${namespace}: ${op} failed — ${message}`);
+      throw err;
+    }
+  };
+
+  return {
+    listQueues: () => run("list queues", () => client.listQueues()),
+    listTopics: () => run("list topics", () => client.listTopics()),
+    listSubscriptions: (topicName) =>
+      run(`list subscriptions of "${topicName}"`, () =>
+        client.listSubscriptions(topicName),
+      ),
+    peekMessages: (params) =>
+      run(
+        `peek "${params.entityPath}"` +
+          (params.subQueue === "deadletter" ? " (dead-letter)" : "") +
+          ` [skip ${params.skip}, top ${params.top}]`,
+        () => client.peekMessages(params),
+      ),
+  };
 }
 
 // --- Namespaces (derived from the user's configured connections) -------------
