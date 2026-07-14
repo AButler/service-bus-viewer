@@ -1,7 +1,7 @@
 // React Query hooks wrapping the Service Bus API. Query keys mirror the
 // resource hierarchy so caching and invalidation behave predictably.
 
-import { keepPreviousData, useQuery } from "@tanstack/react-query";
+import { keepPreviousData, skipToken, useQuery } from "@tanstack/react-query";
 import type { NamespaceConnection } from "../lib/connectionStore";
 import type { PeekMessagesParams } from "../api/types";
 import {
@@ -17,6 +17,23 @@ export function useNamespaces() {
     queryFn: () => listNamespaces(connections.data ?? []),
     enabled: connections.isSuccess,
   });
+}
+
+/**
+ * Whether a namespace has been queried successfully at least once, by passively
+ * observing its cached queues/topics queries (`skipToken` never fetches). Used
+ * to show a "connected" indicator once the tree has been expanded.
+ */
+export function useNamespaceConnected(namespaceName: string): boolean {
+  const queues = useQuery({
+    queryKey: ["queues", namespaceName],
+    queryFn: skipToken,
+  });
+  const topics = useQuery({
+    queryKey: ["topics", namespaceName],
+    queryFn: skipToken,
+  });
+  return queues.isSuccess || topics.isSuccess;
 }
 
 // Resolve the stored connection backing a namespace (by friendly name).

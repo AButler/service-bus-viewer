@@ -10,22 +10,19 @@
 import type {
   PagedResult,
   PeekMessagesParams,
+  EntityStatus,
   SBQueue,
   SBSubscription,
   SBTopic,
   ServiceBusApi,
   ServiceBusReceivedMessage,
 } from "./types";
-import type { ServiceBusReceivedMessage as SdkMessage } from "@azure/service-bus";
+import type {
+  QueueProperties,
+  ServiceBusReceivedMessage as SdkMessage,
+  SubscriptionProperties,
+} from "@azure/service-bus";
 import type { NamespaceConnection } from "../lib/connectionStore";
-
-const ZERO_COUNTS = {
-  activeMessageCount: 0,
-  deadLetterMessageCount: 0,
-  scheduledMessageCount: 0,
-  transferMessageCount: 0,
-  transferDeadLetterMessageCount: 0,
-};
 
 function mapMessage(m: SdkMessage): ServiceBusReceivedMessage {
   return {
@@ -92,8 +89,15 @@ export class ServiceBusClient implements ServiceBusApi {
   async listQueues(): Promise<SBQueue[]> {
     const endpoint = this.connection.serviceBusEndpoint;
     const client = await this.adminClient();
+
+    // Configuration (status, delivery, session, dedup) isn't in the runtime
+    // properties, so read it from `listQueues()` and merge by name.
+    const config = new Map<string, QueueProperties>();
+    for await (const q of client.listQueues()) config.set(q.name, q);
+
     const queues: SBQueue[] = [];
     for await (const q of client.listQueuesRuntimeProperties()) {
+      const cfg = config.get(q.name);
       queues.push({
         id: `${endpoint}/queues/${q.name}`,
         name: q.name,
@@ -107,10 +111,10 @@ export class ServiceBusClient implements ServiceBusApi {
             transferDeadLetterMessageCount: q.transferDeadLetterMessageCount,
           },
           messageCount: q.totalMessageCount ?? 0,
-          status: "Active",
-          maxDeliveryCount: 10,
-          requiresSession: false,
-          requiresDuplicateDetection: false,
+          status: cfg?.status ?? "Unknown",
+          maxDeliveryCount: cfg?.maxDeliveryCount ?? 10,
+          requiresSession: cfg?.requiresSession ?? false,
+          requiresDuplicateDetection: cfg?.requiresDuplicateDetection ?? false,
         },
       });
     }
@@ -120,6 +124,11 @@ export class ServiceBusClient implements ServiceBusApi {
   async listTopics(): Promise<SBTopic[]> {
     const endpoint = this.connection.serviceBusEndpoint;
     const client = await this.adminClient();
+
+    // Status is configuration, not runtime, so read it from `listTopics()`.
+    const status = new Map<string, EntityStatus>();
+    for await (const t of client.listTopics()) status.set(t.name, t.status);
+
     const topics: SBTopic[] = [];
     for await (const t of client.listTopicsRuntimeProperties()) {
       topics.push({
@@ -127,9 +136,8 @@ export class ServiceBusClient implements ServiceBusApi {
         name: t.name,
         type: "Microsoft.ServiceBus/Namespaces/Topics",
         properties: {
-          countDetails: { ...ZERO_COUNTS },
           subscriptionCount: t.subscriptionCount ?? 0,
-          status: "Active",
+          status: status.get(t.name) ?? "Unknown",
         },
       });
     }
@@ -139,10 +147,19 @@ export class ServiceBusClient implements ServiceBusApi {
   async listSubscriptions(topicName: string): Promise<SBSubscription[]> {
     const endpoint = this.connection.serviceBusEndpoint;
     const client = await this.adminClient();
+
+    // Configuration (status, delivery count) isn't in the runtime properties,
+    // so read it from `listSubscriptions()` and merge by name.
+    const config = new Map<string, SubscriptionProperties>();
+    for await (const s of client.listSubscriptions(topicName)) {
+      config.set(s.subscriptionName, s);
+    }
+
     const subscriptions: SBSubscription[] = [];
     for await (const s of client.listSubscriptionsRuntimeProperties(
       topicName,
     )) {
+      const cfg = config.get(s.subscriptionName);
       subscriptions.push({
         id:
           `${endpoint}/topics/${topicName}` +
@@ -159,8 +176,8 @@ export class ServiceBusClient implements ServiceBusApi {
               s.transferDeadLetterMessageCount ?? 0,
           },
           messageCount: s.totalMessageCount ?? 0,
-          status: "Active",
-          maxDeliveryCount: 10,
+          status: cfg?.status ?? "Unknown",
+          maxDeliveryCount: cfg?.maxDeliveryCount ?? 10,
         },
       });
     }

@@ -15,18 +15,25 @@ export interface MessageCountDetails {
   transferDeadLetterMessageCount: number;
 }
 
-export type EntityStatus = "Active" | "Disabled" | "ReceiveDisabled";
+// The set of entity statuses returned by the Azure Service Bus SDK
+// (`EntityStatus` from `@azure/service-bus`).
+export type EntityStatus =
+  | "Active"
+  | "Creating"
+  | "Deleting"
+  | "Disabled"
+  | "ReceiveDisabled"
+  | "Renaming"
+  | "Restoring"
+  | "SendDisabled"
+  | "Unknown";
 
 export interface SBNamespace {
   id: string;
   name: string;
   type: "Microsoft.ServiceBus/Namespaces";
-  location: string;
   properties: {
-    provisioningState: string;
-    status: string;
     serviceBusEndpoint: string;
-    createdAt: string;
   };
 }
 
@@ -49,7 +56,6 @@ export interface SBTopic {
   name: string;
   type: "Microsoft.ServiceBus/Namespaces/Topics";
   properties: {
-    countDetails: MessageCountDetails;
     subscriptionCount: number;
     status: EntityStatus;
   };

@@ -1,19 +1,14 @@
-import { Badge, Box, IconButton, Typography } from "@mui/material";
+import { Badge, Box, IconButton, Tooltip, Typography } from "@mui/material";
 import { TreeItem } from "@mui/x-tree-view/TreeItem";
 import CloudQueueRoundedIcon from "@mui/icons-material/CloudQueueRounded";
 import MoreVertRoundedIcon from "@mui/icons-material/MoreVertRounded";
 import type { SBNamespace } from "../../api/types";
 import { deriveNamespaceHost } from "../../lib/namespace";
+import { useNamespaceConnected } from "../../hooks/useServiceBus";
 import { Placeholder } from "./treeItems";
 import NamespaceChildren from "./NamespaceChildren";
 
-const namespaceStatusColor: Record<string, "success" | "warning" | "error"> = {
-  Active: "success",
-  Creating: "warning",
-  Failed: "error",
-};
-
-/** Top-level namespace branch with a status dot, host, and context menu. */
+/** Top-level namespace branch with a host label and context menu. */
 export default function NamespaceItem({
   namespace,
   expandedItems,
@@ -28,6 +23,7 @@ export default function NamespaceItem({
   const itemId = `namespace:${namespace.name}`;
   const isExpanded = expandedItems.includes(itemId);
   const host = deriveNamespaceHost(namespace.properties.serviceBusEndpoint);
+  const connected = useNamespaceConnected(namespace.name);
 
   return (
     <TreeItem
@@ -42,16 +38,22 @@ export default function NamespaceItem({
             "&:hover .namespace-menu-button": { display: "inline-flex" },
           }}
         >
-          <Badge
-            variant="dot"
-            overlap="circular"
-            anchorOrigin={{ vertical: "bottom", horizontal: "right" }}
-            color={
-              namespaceStatusColor[namespace.properties.status] ?? "warning"
-            }
-          >
-            <CloudQueueRoundedIcon fontSize="small" color="action" />
-          </Badge>
+          <Tooltip title={connected ? "Connected" : "Not connected yet"}>
+            <Badge
+              variant="dot"
+              overlap="circular"
+              anchorOrigin={{ vertical: "bottom", horizontal: "right" }}
+              sx={{
+                "& .MuiBadge-badge": {
+                  backgroundColor: connected
+                    ? "success.main"
+                    : "action.disabled",
+                },
+              }}
+            >
+              <CloudQueueRoundedIcon fontSize="small" color="action" />
+            </Badge>
+          </Tooltip>
           <Box sx={{ minWidth: 0 }}>
             <Typography variant="subtitle2" noWrap>
               {namespace.name}

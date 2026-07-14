@@ -88,7 +88,7 @@ const rawNamespaces: RawNamespace[] = [
 const SUBSCRIPTION_ID = "00000000-0000-0000-0000-000000000000";
 const RESOURCE_GROUP = "rg-messaging";
 
-export function namespaceResourceId(ns: string): string {
+function namespaceResourceId(ns: string): string {
   return (
     `/subscriptions/${SUBSCRIPTION_ID}/resourceGroups/${RESOURCE_GROUP}` +
     `/providers/Microsoft.ServiceBus/namespaces/${ns}`
@@ -126,7 +126,7 @@ function hashString(value: string): number {
 // Deterministically assign one of the sample datasets to a namespace name, so
 // any configured connection is backed by mock data. A name matching a sample
 // reuses it; any other name is hash-assigned to one of the samples.
-export function sampleFor(name: string): RawNamespace {
+function sampleFor(name: string): RawNamespace {
   return (
     rawNamespaces.find((ns) => ns.name === name) ??
     rawNamespaces[Math.abs(hashString(name)) % rawNamespaces.length]
@@ -292,20 +292,15 @@ async function mockListQueues(namespaceName: string): Promise<SBQueue[]> {
 async function mockListTopics(namespaceName: string): Promise<SBTopic[]> {
   await delay(latency(`topics:${namespaceName}`));
   const ns = sampleFor(namespaceName);
-  return ns.topics.map((t) => {
-    const active = t.subscriptions.reduce((sum, s) => sum + s.active, 0);
-    const dead = t.subscriptions.reduce((sum, s) => sum + s.dead, 0);
-    return {
-      id: `${namespaceResourceId(namespaceName)}/topics/${t.name}`,
-      name: t.name,
-      type: "Microsoft.ServiceBus/Namespaces/Topics",
-      properties: {
-        countDetails: countDetails(active, dead),
-        subscriptionCount: t.subscriptions.length,
-        status: "Active",
-      },
-    };
-  });
+  return ns.topics.map((t) => ({
+    id: `${namespaceResourceId(namespaceName)}/topics/${t.name}`,
+    name: t.name,
+    type: "Microsoft.ServiceBus/Namespaces/Topics",
+    properties: {
+      subscriptionCount: t.subscriptions.length,
+      status: "Active",
+    },
+  }));
 }
 
 async function mockListSubscriptions(
