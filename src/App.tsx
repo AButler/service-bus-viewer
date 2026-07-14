@@ -324,6 +324,13 @@ function App() {
           rows={rows}
           rowCount={rowCount}
           loading={messagesQuery.isFetching}
+          error={
+            messagesQuery.isError
+              ? messagesQuery.error instanceof Error
+                ? messagesQuery.error.message
+                : "Failed to load messages."
+              : null
+          }
           paginationModel={paginationModel}
           selectedId={selection?.sequenceNumber ?? null}
           onViewChange={handleViewChange}

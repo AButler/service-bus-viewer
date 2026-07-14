@@ -12,6 +12,7 @@ interface MessagesPanelProps {
   rows: ServiceBusReceivedMessage[];
   rowCount: number;
   loading: boolean;
+  error?: string | null;
   paginationModel: GridPaginationModel;
   selectedId: string | null;
   onViewChange: (
@@ -30,6 +31,7 @@ export default function MessagesPanel({
   rows,
   rowCount,
   loading,
+  error,
   paginationModel,
   selectedId,
   onViewChange,
@@ -62,6 +64,7 @@ export default function MessagesPanel({
               rows={rows}
               rowCount={rowCount}
               loading={loading}
+              error={error}
               deadLetterView={view === "deadletter"}
               paginationModel={paginationModel}
               onPaginationModelChange={onPaginationModelChange}

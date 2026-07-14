@@ -25,7 +25,7 @@ real thing without touching the UI or hooks.
 - **date-fns** — relative time in the date/time formatter
 - **react-json-view-lite** for JSON body rendering
 - `@fontsource/inter` for the Inter font
-- **Tauri plugins:** `@tauri-apps/plugin-opener` (open links), `@tauri-apps/plugin-clipboard-manager` (copy), `@tauri-apps/plugin-http` (real Azure admin calls)
+- **Tauri plugins:** `@tauri-apps/plugin-opener` (open links), `@tauri-apps/plugin-clipboard-manager` (copy), `@tauri-apps/plugin-http` (real Azure admin calls), `@fabianlars/tauri-plugin-oauth` (loopback server for Entra sign-in)
 - **Custom titlebar:** the window runs with `decorations: false`; `TopBar` is the
   drag region (`data-tauri-drag-region`) and renders `WindowControls`
   (min/max/close via `@tauri-apps/api/window`) only when `isTauri()`. Requires the
@@ -75,7 +75,7 @@ src/
     MessageToolbar.tsx     # Entity header, refresh, count chips, view toggle
     MessageGrid.tsx        # DataGrid (server pagination, no sorting)
     MessageDetails.tsx     # Right panel: collapsible sections + body
-    ConnectionDialog.tsx   # Add-a-connection form (SAS now, Entra scaffolded)
+    ConnectionDialog.tsx   # Add-a-connection form (SAS now, Entra sign-in)
     messageDetails/        # CopyButton, PropertyRow, Section, properties config
     bodyRenderers/         # Content-type -> body renderer registry
     propertyFormatters/    # Property value formatter registry (see below)
@@ -145,7 +145,15 @@ until the user adds one ("Connect namespace").
   `isTauri()`, mirroring `clipboard.ts`.
 - `useConnections()` / `useConnectionMutations()` wrap the store in React Query
   (`["connections"]`); mutations invalidate `["connections"]` and `["namespaces"]`.
-- Entra sign-in is **scaffolded only** (fields stored, no OAuth yet).
+- **Entra sign-in** (`lib/entraAuth.ts`, Tauri only) uses OAuth 2.0 auth-code +
+  PKCE (scope `https://servicebus.azure.net/user_impersonation offline_access`). A loopback
+  server (`@fabianlars/tauri-plugin-oauth` — Rust `tauri_plugin_oauth::init()`,
+  perms `oauth:allow-start/-cancel`) captures the `http://localhost:{port}`
+  redirect; the browser is opened via the opener plugin; the code is exchanged
+  for tokens through the routed `fetch` (no CORS, public client, no secret).
+  `ConnectionDialog` runs `signInWithEntra` and stores the refresh token as the
+  connection secret; `createEntraCredential` turns it into a `TokenCredential`
+  for `@azure/service-bus` and persists rotated refresh tokens back to the store.
   `parseSasConnectionString` fills SAS fields from a pasted connection string.
 
 ## Real vs mock data
@@ -162,11 +170,12 @@ Both clients implement a shared **`ServiceBusApi`** interface (in
 `useServiceBusClient.ts` is the entry module used by the hooks. It exports the
 **factory `useServiceBusClient(connection)`**, which returns a `ServiceBusClient`
 whenever `isTauri()` and a `MockServiceBusClient` otherwise, plus
-`listNamespaces(connections)`. A non-SAS (Entra) connection still gets the real
-client in Tauri, which throws an "Entra not supported" error when a list/peek
-call is made. `@azure/service-bus` is imported **lazily inside the real client's
-methods** so it is never bundled for the browser (which also needs the Node
-polyfills from `vite-plugin-node-polyfills` + `global`/`process`/`Buffer`).
+`listNamespaces(connections)`. A SAS connection uses a connection string; an
+Entra connection uses a `TokenCredential` (from the stored refresh token) with
+the fully-qualified namespace host. `@azure/service-bus` is imported **lazily
+inside the real client's methods** so it is never bundled for the browser (which
+also needs the Node polyfills from `vite-plugin-node-polyfills` +
+`global`/`process`/`Buffer`).
 
 - Real management (list + counts) uses `ServiceBusAdministrationClient` over HTTPS.
   The webview blocks that with CORS, so at startup `installTauriHttp()`
@@ -182,8 +191,10 @@ polyfills from `vite-plugin-node-polyfills` + `global`/`process`/`Buffer`).
 - **Browser can't reach Service Bus** (CORS), so the browser dev server always
   uses the mock. Real data only works in the Tauri build; the `http:default`
   capability allows `https://**` / `http://**`.
-- **Entra is not supported** by the real client yet: the connection is accepted
-  and the real client is used, but list/peek calls throw "Entra not supported".
+- **Entra** connections sign in interactively (`lib/entraAuth.ts`); the stored
+  refresh token becomes a `TokenCredential` passed to the SDK clients (by
+  fully-qualified namespace host). Sign-in is Tauri-only, so the browser dev
+  server can only use Entra connections that already have a refresh token.
 - Peek is cursor-based, so paging currently peeks `skip + top` and slices — fine
   for early pages; revisit for deep pagination.
 

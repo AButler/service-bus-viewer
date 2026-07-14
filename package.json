@@ -18,6 +18,7 @@
     "@azure/service-bus": "^7.9.5",
     "@emotion/react": "^11.14.0",
     "@emotion/styled": "^11.14.1",
+    "@fabianlars/tauri-plugin-oauth": "^2.1.0",
     "@fontsource/inter": "^5.2.8",
     "@mui/icons-material": "^9.2.0",
     "@mui/material": "^9.2.0",

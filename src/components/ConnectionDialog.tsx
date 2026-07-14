@@ -13,6 +13,7 @@ import {
 } from "@mui/material";
 import type { NamespaceConnectionDraft } from "../lib/connectionStore";
 import { parseSasConnectionString } from "../lib/connectionStore/sas";
+import { signInWithEntra } from "../lib/entraAuth";
 
 type AuthKind = "sas" | "entra";
 
@@ -42,12 +43,16 @@ export default function ConnectionDialog({
 }: ConnectionDialogProps) {
   const [authKind, setAuthKind] = useState<AuthKind>("sas");
   const [fields, setFields] = useState(EMPTY);
+  const [signingIn, setSigningIn] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   // Reset the form whenever the dialog is (re)opened.
   useEffect(() => {
     if (open) {
       setAuthKind("sas");
       setFields(EMPTY);
+      setSigningIn(false);
+      setError(null);
     }
   }, [open]);
 
@@ -76,21 +81,41 @@ export default function ConnectionDialog({
       ? fields.keyName.trim() !== "" && fields.key !== ""
       : fields.tenantId.trim() !== "" && fields.clientId.trim() !== "");
 
-  const handleAdd = () => {
-    if (!valid) return;
-    const draft: NamespaceConnectionDraft = {
+  const handleAdd = async () => {
+    if (!valid || signingIn) return;
+    const base = {
       friendlyName: fields.friendlyName.trim(),
       serviceBusEndpoint: fields.endpoint.trim(),
-      auth:
-        authKind === "sas"
-          ? { kind: "sas", keyName: fields.keyName.trim(), key: fields.key }
-          : {
-              kind: "entra",
-              tenantId: fields.tenantId.trim(),
-              clientId: fields.clientId.trim(),
-            },
     };
-    onAdd(draft);
+
+    if (authKind === "sas") {
+      onAdd({
+        ...base,
+        auth: { kind: "sas", keyName: fields.keyName.trim(), key: fields.key },
+      });
+      return;
+    }
+
+    const tenantId = fields.tenantId.trim();
+    const clientId = fields.clientId.trim();
+    setError(null);
+    setSigningIn(true);
+    try {
+      const tokens = await signInWithEntra({ tenantId, clientId });
+      onAdd({
+        ...base,
+        auth: {
+          kind: "entra",
+          tenantId,
+          clientId,
+          refreshToken: tokens.refreshToken,
+        },
+      });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setSigningIn(false);
+    }
   };
 
   return (
@@ -168,21 +193,30 @@ export default function ConnectionDialog({
                 fullWidth
               />
               <Typography variant="caption" color="text.secondary">
-                Interactive Entra sign-in is coming soon; credentials are stored
-                for the connection now.
+                Connecting opens your browser to sign in with Entra ID. A
+                refresh token is stored so the connection stays signed in.
               </Typography>
             </>
           )}
         </Box>
+        {error && (
+          <Typography variant="caption" color="error" sx={{ mt: 2 }}>
+            {error}
+          </Typography>
+        )}
       </DialogContent>
       <DialogActions>
         <Button onClick={onClose}>Cancel</Button>
         <Button
           variant="contained"
-          onClick={handleAdd}
-          disabled={!valid || busy}
+          onClick={() => void handleAdd()}
+          disabled={!valid || busy || signingIn}
         >
-          Connect
+          {signingIn
+            ? "Signing in\u2026"
+            : authKind === "entra"
+              ? "Sign in & connect"
+              : "Connect"}
         </Button>
       </DialogActions>
     </Dialog>

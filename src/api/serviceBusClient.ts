@@ -22,7 +22,58 @@ import type {
   ServiceBusReceivedMessage as SdkMessage,
   SubscriptionProperties,
 } from "@azure/service-bus";
+import type { TokenCredential } from "@azure/core-auth";
 import type { NamespaceConnection } from "../lib/connectionStore";
+import { getConnectionStore } from "../lib/connectionStore";
+import { createEntraCredential } from "../lib/entraAuth";
+
+// Peek is bounded so a stalled AMQP connection can't hang the UI forever. The
+// SDK's own retries are disabled (maxRetries: 0) so we retry transient failures
+// ourselves while failing fast on non-retryable ones (access denied).
+const PEEK_SDK_OPTIONS = { retryOptions: { maxRetries: 0 } };
+const PEEK_MAX_ATTEMPTS = 3;
+const PEEK_TIMEOUT_MS = 20_000;
+const PEEK_TIMEOUT_MESSAGE =
+  "Timed out peeking messages. For Entra ID connections, check the signed-in " +
+  "user has an Azure Service Bus data role on the namespace.";
+
+function withTimeout<T>(
+  promise: Promise<T>,
+  ms: number,
+  message: string,
+): Promise<T> {
+  let timer: ReturnType<typeof setTimeout>;
+  const timeout = new Promise<never>((_resolve, reject) => {
+    timer = setTimeout(() => reject(new Error(message)), ms);
+  });
+  return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
+}
+
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+// Authorization failures (e.g. a missing Azure Service Bus data role) aren't
+// worth retrying — surface them immediately.
+function isAccessDeniedError(err: unknown): boolean {
+  if (!err || typeof err !== "object") return false;
+  const e = err as {
+    code?: unknown;
+    name?: unknown;
+    message?: unknown;
+    statusCode?: unknown;
+  };
+  if (e.code === "UnauthorizedAccess") return true;
+  if (e.statusCode === 401 || e.statusCode === 403) return true;
+  const text = `${String(e.code ?? "")} ${String(e.name ?? "")} ${String(
+    e.message ?? "",
+  )}`.toLowerCase();
+  return (
+    text.includes("unauthorized") ||
+    text.includes("access denied") ||
+    text.includes("forbidden")
+  );
+}
 
 function mapMessage(m: SdkMessage): ServiceBusReceivedMessage {
   return {
@@ -54,18 +105,63 @@ function mapMessage(m: SdkMessage): ServiceBusReceivedMessage {
  * when a list/peek call is made.
  */
 export class ServiceBusClient implements ServiceBusApi {
-  private readonly connection: NamespaceConnection;
+  private connection: NamespaceConnection;
+  private credential?: TokenCredential;
 
   constructor(connection: NamespaceConnection) {
     this.connection = connection;
   }
 
+  // Fully-qualified namespace host (e.g. `contoso.servicebus.windows.net`),
+  // used for the token-credential-based clients.
+  private host(): string {
+    try {
+      return new URL(this.connection.serviceBusEndpoint).hostname;
+    } catch {
+      return this.connection.serviceBusEndpoint;
+    }
+  }
+
+  // Persist a rotated Entra refresh token so it survives app restarts.
+  private persistRefreshToken(refreshToken: string): void {
+    const { auth } = this.connection;
+    if (auth.kind !== "entra") return;
+    this.connection = {
+      ...this.connection,
+      auth: { ...auth, refreshToken },
+    };
+    void getConnectionStore()
+      .update(this.connection)
+      .catch(() => {
+        // Best-effort; the in-memory credential still holds the latest token.
+      });
+  }
+
+  private getCredential(): TokenCredential {
+    const { auth } = this.connection;
+    if (auth.kind !== "entra") {
+      throw new Error("A token credential is only available for Entra auth.");
+    }
+    if (!auth.refreshToken) {
+      throw new Error(
+        "Not signed in. Reconnect the namespace to sign in with Entra ID.",
+      );
+    }
+    this.credential ??= createEntraCredential(
+      {
+        tenantId: auth.tenantId,
+        clientId: auth.clientId,
+        refreshToken: auth.refreshToken,
+      },
+      (rotated) => this.persistRefreshToken(rotated),
+    );
+    return this.credential;
+  }
+
   private connectionString(): string {
     const { auth, serviceBusEndpoint } = this.connection;
     if (auth.kind !== "sas") {
-      throw new Error(
-        "Entra ID authentication is not supported yet — use a SAS connection.",
-      );
+      throw new Error("A connection string is only available for SAS auth.");
     }
     let host = serviceBusEndpoint;
     try {
@@ -83,7 +179,9 @@ export class ServiceBusClient implements ServiceBusApi {
   private async adminClient() {
     const { ServiceBusAdministrationClient } =
       await import("@azure/service-bus");
-    return new ServiceBusAdministrationClient(this.connectionString());
+    return this.connection.auth.kind === "sas"
+      ? new ServiceBusAdministrationClient(this.connectionString())
+      : new ServiceBusAdministrationClient(this.host(), this.getCredential());
   }
 
   async listQueues(): Promise<SBQueue[]> {
@@ -211,7 +309,44 @@ export class ServiceBusClient implements ServiceBusApi {
     }
 
     const { ServiceBusClient: SdkClient } = await import("@azure/service-bus");
-    const client = new SdkClient(this.connectionString());
+    let lastError: unknown;
+    for (let attempt = 1; attempt <= PEEK_MAX_ATTEMPTS; attempt++) {
+      try {
+        const value = await this.peekPage(
+          SdkClient,
+          entityPath,
+          subQueue,
+          skip,
+          top,
+        );
+        return {
+          value,
+          totalCount,
+          nextSkip: skip + top < totalCount ? skip + top : null,
+        };
+      } catch (err) {
+        // Access-denied is not retryable — return straight away instead of
+        // retrying and waiting out the timeout.
+        if (isAccessDeniedError(err)) throw err;
+        lastError = err;
+        if (attempt < PEEK_MAX_ATTEMPTS) await delay(500 * attempt);
+      }
+    }
+    throw lastError;
+  }
+
+  // One peek attempt: open a client + receiver, peek a page, and clean up.
+  private async peekPage(
+    SdkClient: typeof import("@azure/service-bus").ServiceBusClient,
+    entityPath: string,
+    subQueue: PeekMessagesParams["subQueue"],
+    skip: number,
+    top: number,
+  ): Promise<ServiceBusReceivedMessage[]> {
+    const client =
+      this.connection.auth.kind === "sas"
+        ? new SdkClient(this.connectionString(), PEEK_SDK_OPTIONS)
+        : new SdkClient(this.host(), this.getCredential(), PEEK_SDK_OPTIONS);
     try {
       const options =
         subQueue === "deadletter"
@@ -225,15 +360,15 @@ export class ServiceBusClient implements ServiceBusApi {
           )
         : client.createReceiver(entityPath, options);
 
-      // Peek is cursor-based; peek `skip + top` from the start and slice the page.
-      const peeked = await receiver.peekMessages(skip + top);
+      // Peek is cursor-based; peek `skip + top` from the start and slice the
+      // page. Bounded so a stalled connection surfaces as an error.
+      const peeked = await withTimeout(
+        receiver.peekMessages(skip + top),
+        PEEK_TIMEOUT_MS,
+        PEEK_TIMEOUT_MESSAGE,
+      );
       await receiver.close();
-
-      return {
-        value: peeked.slice(skip, skip + top).map(mapMessage),
-        totalCount,
-        nextSkip: skip + top < totalCount ? skip + top : null,
-      };
+      return peeked.slice(skip, skip + top).map(mapMessage);
     } finally {
       await client.close();
     }

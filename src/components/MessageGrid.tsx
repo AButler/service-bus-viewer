@@ -5,7 +5,8 @@ import {
   type GridPaginationModel,
   type GridRowParams,
 } from "@mui/x-data-grid";
-import { Box, Chip } from "@mui/material";
+import { Box, Chip, Typography } from "@mui/material";
+import ErrorOutlineRoundedIcon from "@mui/icons-material/ErrorOutlineRounded";
 import type { ServiceBusReceivedMessage } from "../api/types";
 import { getPropertyFormatter } from "./propertyFormatters";
 
@@ -13,6 +14,7 @@ interface MessageGridProps {
   rows: ServiceBusReceivedMessage[];
   rowCount: number;
   loading: boolean;
+  error?: string | null;
   deadLetterView: boolean;
   paginationModel: GridPaginationModel;
   onPaginationModelChange: (model: GridPaginationModel) => void;
@@ -37,6 +39,7 @@ export default function MessageGrid({
   rows,
   rowCount,
   loading,
+  error,
   deadLetterView,
   paginationModel,
   onPaginationModelChange,
@@ -145,6 +148,7 @@ export default function MessageGrid({
             : { type: "include", ids: new Set() }
         }
         pageSizeOptions={[25, 50, 100]}
+        slots={{ noRowsOverlay: () => <MessagesOverlay error={error} /> }}
         sx={{
           border: "none",
           "& .MuiDataGrid-row": { cursor: "pointer" },
@@ -152,6 +156,37 @@ export default function MessageGrid({
           "& .MuiLinearProgress-root": { height: 2 },
         }}
       />
+    </Box>
+  );
+}
+
+/** No-rows overlay that shows a peek error when present, else an empty state. */
+function MessagesOverlay({ error }: { error?: string | null }) {
+  return (
+    <Box
+      sx={{
+        height: "100%",
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        justifyContent: "center",
+        gap: 1,
+        p: 3,
+        textAlign: "center",
+      }}
+    >
+      {error ? (
+        <>
+          <ErrorOutlineRoundedIcon color="error" />
+          <Typography variant="body2" color="error">
+            {error}
+          </Typography>
+        </>
+      ) : (
+        <Typography variant="body2" color="text.secondary">
+          No messages
+        </Typography>
+      )}
     </Box>
   );
 }
