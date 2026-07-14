@@ -1,358 +1,288 @@
-// Mock implementation of the Azure Service Bus API surface.
+// Public Azure Service Bus client.
 //
-// Every function returns data in the same shape as the official Microsoft SDKs
-// and simulates network latency so loading states are exercised. Swapping these
-// out for real `@azure/arm-servicebus` / `@azure/service-bus` calls would not
-// require any change to the calling hooks or components.
+// Dispatches to the real Azure SDK (Tauri desktop + SAS auth) or the mock
+// (browser / no real backend). `@azure/service-bus` and the Tauri HTTP shim are
+// imported lazily inside the real functions so they are never bundled for the
+// browser, where Service Bus is unreachable (CORS on the management endpoint).
 
 import type {
-  MessageCountDetails,
   PagedResult,
+  PeekMessagesParams,
   SBNamespace,
   SBQueue,
   SBSubscription,
   SBTopic,
   ServiceBusReceivedMessage,
-  SubQueue,
 } from "./types";
+import type { ServiceBusReceivedMessage as SdkMessage } from "@azure/service-bus";
+import { isTauri } from "@tauri-apps/api/core";
+import {
+  getConnectionStore,
+  type NamespaceConnection,
+} from "../lib/connectionStore";
+import {
+  mockListQueues,
+  mockListSubscriptions,
+  mockListTopics,
+  mockPeekMessages,
+  namespaceResourceId,
+  sampleFor,
+} from "./mockServiceBusClient";
 
-// --- Raw seed data (would be the real Azure resources in production) ----------
+export type { PeekMessagesParams } from "./types";
 
-interface RawEntity {
-  name: string;
-  active: number;
-  dead: number;
-}
+// --- Namespaces (derived from the user's configured connections) -------------
 
-interface RawTopic {
-  name: string;
-  subscriptions: RawEntity[];
-}
-
-interface RawNamespace {
-  name: string;
-  location: string;
-  queues: RawEntity[];
-  topics: RawTopic[];
-}
-
-const rawNamespaces: RawNamespace[] = [
-  {
-    name: "contoso-prod",
-    location: "uksouth",
-    queues: [
-      { name: "orders", active: 128, dead: 3 },
-      { name: "payments", active: 42, dead: 0 },
-      { name: "notifications", active: 0, dead: 0 },
-    ],
-    topics: [
-      {
-        name: "order-events",
-        subscriptions: [
-          { name: "fulfilment", active: 17, dead: 1 },
-          { name: "analytics", active: 5, dead: 0 },
-          { name: "audit", active: 230, dead: 12 },
-        ],
-      },
-      {
-        name: "inventory",
-        subscriptions: [{ name: "warehouse", active: 8, dead: 0 }],
-      },
-    ],
-  },
-  {
-    name: "contoso-staging",
-    location: "ukwest",
-    queues: [
-      { name: "orders", active: 12, dead: 0 },
-      { name: "dead-letters", active: 0, dead: 0 },
-    ],
-    topics: [
-      {
-        name: "order-events",
-        subscriptions: [{ name: "fulfilment", active: 2, dead: 0 }],
-      },
-    ],
-  },
-  {
-    name: "dev-sandbox",
-    location: "uksouth",
-    queues: [{ name: "scratch", active: 0, dead: 0 }],
-    topics: [],
-  },
-];
-
-// --- Helpers ------------------------------------------------------------------
-
-const SUBSCRIPTION_ID = "00000000-0000-0000-0000-000000000000";
-const RESOURCE_GROUP = "rg-messaging";
-
-function namespaceResourceId(ns: string): string {
-  return (
-    `/subscriptions/${SUBSCRIPTION_ID}/resourceGroups/${RESOURCE_GROUP}` +
-    `/providers/Microsoft.ServiceBus/namespaces/${ns}`
-  );
-}
-
-function countDetails(active: number, dead: number): MessageCountDetails {
-  return {
-    activeMessageCount: active,
-    deadLetterMessageCount: dead,
-    scheduledMessageCount: 0,
-    transferMessageCount: 0,
-    transferDeadLetterMessageCount: 0,
-  };
-}
-
-function delay(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-// Small deterministic latency (250-650ms) so spinners are visible but not slow.
-function latency(key: string): number {
-  return 250 + (Math.abs(hashString(key)) % 400);
-}
-
-function hashString(value: string): number {
-  let hash = 0;
-  for (let i = 0; i < value.length; i++) {
-    hash = (hash << 5) - hash + value.charCodeAt(i);
-    hash |= 0;
-  }
-  return hash;
-}
-
-function findNamespace(name: string): RawNamespace | undefined {
-  return rawNamespaces.find((ns) => ns.name === name);
-}
-
-// Resolve the raw counts for a queue ("queue") or subscription ("topic/sub").
-function resolveEntity(
-  namespaceName: string,
-  entityPath: string,
-): RawEntity | undefined {
-  const ns = findNamespace(namespaceName);
-  if (!ns) return undefined;
-  if (entityPath.includes("/")) {
-    const [topicName, subName] = entityPath.split("/");
-    const topic = ns.topics.find((t) => t.name === topicName);
-    return topic?.subscriptions.find((s) => s.name === subName);
-  }
-  return ns.queues.find((q) => q.name === entityPath);
-}
-
-// --- Management-plane operations ---------------------------------------------
-
-export async function listNamespaces(): Promise<SBNamespace[]> {
-  await delay(latency("namespaces"));
-  return rawNamespaces.map((ns) => ({
-    id: namespaceResourceId(ns.name),
-    name: ns.name,
+export async function listNamespaces(
+  connections: NamespaceConnection[],
+): Promise<SBNamespace[]> {
+  return connections.map((connection) => ({
+    id: namespaceResourceId(connection.friendlyName),
+    name: connection.friendlyName,
     type: "Microsoft.ServiceBus/Namespaces",
-    location: ns.location,
+    location: sampleFor(connection.friendlyName).location,
     properties: {
       provisioningState: "Succeeded",
       status: "Active",
-      serviceBusEndpoint: `https://${ns.name}.servicebus.windows.net:443/`,
+      serviceBusEndpoint: connection.serviceBusEndpoint,
       createdAt: "2026-01-04T09:12:33Z",
     },
   }));
 }
 
-export async function listQueues(namespaceName: string): Promise<SBQueue[]> {
-  await delay(latency(`queues:${namespaceName}`));
-  const ns = findNamespace(namespaceName);
-  if (!ns) return [];
-  return ns.queues.map((q) => ({
-    id: `${namespaceResourceId(namespaceName)}/queues/${q.name}`,
-    name: q.name,
-    type: "Microsoft.ServiceBus/Namespaces/Queues",
-    properties: {
-      countDetails: countDetails(q.active, q.dead),
-      messageCount: q.active + q.dead,
-      status: "Active",
-      maxDeliveryCount: 10,
-      requiresSession: false,
-      requiresDuplicateDetection: false,
-    },
-  }));
+// --- Real Azure client (Tauri desktop + SAS only) ----------------------------
+//
+// HTTP transport is handled at startup (see `lib/tauriHttp.ts`), which routes
+// `fetch` through the Tauri HTTP plugin so these calls aren't CORS-blocked.
+
+function connectionString(connection: NamespaceConnection): string {
+  if (connection.auth.kind !== "sas") {
+    throw new Error(
+      "Entra ID authentication is not supported yet — use a SAS connection.",
+    );
+  }
+  let host = connection.serviceBusEndpoint;
+  try {
+    host = new URL(connection.serviceBusEndpoint).hostname;
+  } catch {
+    // Fall back to the raw endpoint if it isn't a valid URL.
+  }
+  return (
+    `Endpoint=sb://${host}/;` +
+    `SharedAccessKeyName=${connection.auth.keyName};` +
+    `SharedAccessKey=${connection.auth.key}`
+  );
 }
 
-export async function listTopics(namespaceName: string): Promise<SBTopic[]> {
-  await delay(latency(`topics:${namespaceName}`));
-  const ns = findNamespace(namespaceName);
-  if (!ns) return [];
-  return ns.topics.map((t) => {
-    const active = t.subscriptions.reduce((sum, s) => sum + s.active, 0);
-    const dead = t.subscriptions.reduce((sum, s) => sum + s.dead, 0);
-    return {
-      id: `${namespaceResourceId(namespaceName)}/topics/${t.name}`,
+async function adminClient(connection: NamespaceConnection) {
+  const { ServiceBusAdministrationClient } = await import("@azure/service-bus");
+  return new ServiceBusAdministrationClient(connectionString(connection));
+}
+
+const ZERO_COUNTS = {
+  activeMessageCount: 0,
+  deadLetterMessageCount: 0,
+  scheduledMessageCount: 0,
+  transferMessageCount: 0,
+  transferDeadLetterMessageCount: 0,
+};
+
+async function realListQueues(
+  connection: NamespaceConnection,
+): Promise<SBQueue[]> {
+  const client = await adminClient(connection);
+  const queues: SBQueue[] = [];
+  for await (const q of client.listQueuesRuntimeProperties()) {
+    queues.push({
+      id: `${connection.serviceBusEndpoint}/queues/${q.name}`,
+      name: q.name,
+      type: "Microsoft.ServiceBus/Namespaces/Queues",
+      properties: {
+        countDetails: {
+          activeMessageCount: q.activeMessageCount,
+          deadLetterMessageCount: q.deadLetterMessageCount,
+          scheduledMessageCount: q.scheduledMessageCount,
+          transferMessageCount: q.transferMessageCount,
+          transferDeadLetterMessageCount: q.transferDeadLetterMessageCount,
+        },
+        messageCount: q.totalMessageCount ?? 0,
+        status: "Active",
+        maxDeliveryCount: 10,
+        requiresSession: false,
+        requiresDuplicateDetection: false,
+      },
+    });
+  }
+  return queues;
+}
+
+async function realListTopics(
+  connection: NamespaceConnection,
+): Promise<SBTopic[]> {
+  const client = await adminClient(connection);
+  const topics: SBTopic[] = [];
+  for await (const t of client.listTopicsRuntimeProperties()) {
+    topics.push({
+      id: `${connection.serviceBusEndpoint}/topics/${t.name}`,
       name: t.name,
       type: "Microsoft.ServiceBus/Namespaces/Topics",
       properties: {
-        countDetails: countDetails(active, dead),
-        subscriptionCount: t.subscriptions.length,
+        countDetails: { ...ZERO_COUNTS },
+        subscriptionCount: t.subscriptionCount ?? 0,
         status: "Active",
       },
+    });
+  }
+  return topics;
+}
+
+async function realListSubscriptions(
+  connection: NamespaceConnection,
+  topicName: string,
+): Promise<SBSubscription[]> {
+  const client = await adminClient(connection);
+  const subscriptions: SBSubscription[] = [];
+  for await (const s of client.listSubscriptionsRuntimeProperties(topicName)) {
+    subscriptions.push({
+      id:
+        `${connection.serviceBusEndpoint}/topics/${topicName}` +
+        `/subscriptions/${s.subscriptionName}`,
+      name: s.subscriptionName,
+      type: "Microsoft.ServiceBus/Namespaces/Topics/Subscriptions",
+      properties: {
+        countDetails: {
+          activeMessageCount: s.activeMessageCount,
+          deadLetterMessageCount: s.deadLetterMessageCount,
+          scheduledMessageCount: 0,
+          transferMessageCount: s.transferMessageCount ?? 0,
+          transferDeadLetterMessageCount: s.transferDeadLetterMessageCount ?? 0,
+        },
+        messageCount: s.totalMessageCount ?? 0,
+        status: "Active",
+        maxDeliveryCount: 10,
+      },
+    });
+  }
+  return subscriptions;
+}
+
+function mapMessage(m: SdkMessage): ServiceBusReceivedMessage {
+  return {
+    messageId: String(m.messageId ?? ""),
+    sequenceNumber: Number(m.sequenceNumber ?? 0),
+    enqueuedSequenceNumber: Number(m.enqueuedSequenceNumber ?? 0),
+    subject: m.subject,
+    body: m.body,
+    contentType: m.contentType,
+    correlationId:
+      m.correlationId != null ? String(m.correlationId) : undefined,
+    sessionId: m.sessionId,
+    enqueuedTimeUtc: m.enqueuedTimeUtc ?? new Date(),
+    expiresAtUtc: m.expiresAtUtc ?? new Date(),
+    timeToLive: m.timeToLive ?? 0,
+    deliveryCount: m.deliveryCount ?? 0,
+    state: m.state,
+    applicationProperties:
+      m.applicationProperties as ServiceBusReceivedMessage["applicationProperties"],
+    deadLetterReason: m.deadLetterReason,
+    deadLetterErrorDescription: m.deadLetterErrorDescription,
+    deadLetterSource: m.deadLetterSource,
+  };
+}
+
+async function realPeekMessages(
+  connection: NamespaceConnection,
+  params: PeekMessagesParams,
+): Promise<PagedResult<ServiceBusReceivedMessage>> {
+  const { entityPath, subQueue, skip, top } = params;
+
+  // Total count comes from the entity's runtime properties.
+  const admin = await adminClient(connection);
+  let totalCount: number;
+  if (entityPath.includes("/")) {
+    const [topicName, subName] = entityPath.split("/");
+    const rt = await admin.getSubscriptionRuntimeProperties(topicName, subName);
+    totalCount =
+      subQueue === "deadletter"
+        ? rt.deadLetterMessageCount
+        : rt.activeMessageCount;
+  } else {
+    const rt = await admin.getQueueRuntimeProperties(entityPath);
+    totalCount =
+      subQueue === "deadletter"
+        ? rt.deadLetterMessageCount
+        : rt.activeMessageCount;
+  }
+
+  const { ServiceBusClient } = await import("@azure/service-bus");
+  const client = new ServiceBusClient(connectionString(connection));
+  try {
+    const options =
+      subQueue === "deadletter" ? { subQueueType: "deadLetter" as const } : {};
+    const receiver = entityPath.includes("/")
+      ? client.createReceiver(
+          entityPath.split("/")[0],
+          entityPath.split("/")[1],
+          options,
+        )
+      : client.createReceiver(entityPath, options);
+
+    // Peek is cursor-based; peek `skip + top` from the start and slice the page.
+    const peeked = await receiver.peekMessages(skip + top);
+    await receiver.close();
+
+    return {
+      value: peeked.slice(skip, skip + top).map(mapMessage),
+      totalCount,
+      nextSkip: skip + top < totalCount ? skip + top : null,
     };
-  });
+  } finally {
+    await client.close();
+  }
+}
+
+// --- Real / mock dispatch -----------------------------------------------------
+
+async function resolveConnection(
+  namespaceName: string,
+): Promise<NamespaceConnection | undefined> {
+  const connections = await getConnectionStore().list();
+  return connections.find((c) => c.friendlyName === namespaceName);
+}
+
+// Real Azure calls only work in the Tauri desktop build (the browser blocks the
+// management endpoint via CORS) and only for SAS auth for now.
+function useRealApi(
+  connection: NamespaceConnection | undefined,
+): connection is NamespaceConnection {
+  return isTauri() && connection?.auth.kind === "sas";
+}
+
+export async function listQueues(namespaceName: string): Promise<SBQueue[]> {
+  const connection = await resolveConnection(namespaceName);
+  if (useRealApi(connection)) return realListQueues(connection);
+  return mockListQueues(namespaceName);
+}
+
+export async function listTopics(namespaceName: string): Promise<SBTopic[]> {
+  const connection = await resolveConnection(namespaceName);
+  if (useRealApi(connection)) return realListTopics(connection);
+  return mockListTopics(namespaceName);
 }
 
 export async function listSubscriptions(
   namespaceName: string,
   topicName: string,
 ): Promise<SBSubscription[]> {
-  await delay(latency(`subs:${namespaceName}:${topicName}`));
-  const ns = findNamespace(namespaceName);
-  const topic = ns?.topics.find((t) => t.name === topicName);
-  if (!topic) return [];
-  return topic.subscriptions.map((s) => ({
-    id:
-      `${namespaceResourceId(namespaceName)}/topics/${topicName}` +
-      `/subscriptions/${s.name}`,
-    name: s.name,
-    type: "Microsoft.ServiceBus/Namespaces/Topics/Subscriptions",
-    properties: {
-      countDetails: countDetails(s.active, s.dead),
-      messageCount: s.active + s.dead,
-      status: "Active",
-      maxDeliveryCount: 10,
-    },
-  }));
+  const connection = await resolveConnection(namespaceName);
+  if (useRealApi(connection)) return realListSubscriptions(connection, topicName);
+  return mockListSubscriptions(namespaceName, topicName);
 }
 
-// --- Data-plane operations ----------------------------------------------------
-
-export interface PeekMessagesParams {
-  namespaceName: string;
-  entityPath: string;
-  subQueue: SubQueue;
-  skip: number;
-  top: number;
-}
-
-const subjects = [
-  "OrderCreated",
-  "OrderShipped",
-  "PaymentReceived",
-  "InventoryUpdated",
-  "CustomerNotified",
-];
-
-const deadLetterReasons = [
-  "MaxDeliveryCountExceeded",
-  "TTLExpiredException",
-  "HeaderSizeExceeded",
-  "ApplicationError",
-];
-
-const bodies = [
-  {
-    orderId: "ORD-10432",
-    customerId: "CUST-88213",
-    total: 149.99,
-    currency: "GBP",
-    items: 3,
-  },
-  { orderId: "ORD-10433", status: "shipped", trackingNumber: "TRK-556231" },
-  { paymentId: "PAY-77213", amount: 42.5, method: "card", approved: true },
-  {
-    orderId: "ORD-90001",
-    customerId: "CUST-42210",
-    currency: "GBP",
-    notes:
-      "Bulk order with expedited shipping and gift wrapping across multiple warehouses.",
-    shippingAddress: {
-      line1: "128 Example Street",
-      line2: "Building C, Floor 4",
-      city: "Manchester",
-      postcode: "M1 2AB",
-      country: "United Kingdom",
-    },
-    items: Array.from({ length: 20 }, (_, i) => ({
-      sku: `SKU-${1000 + i}`,
-      name: `Product number ${i + 1} with a reasonably descriptive name`,
-      quantity: (i % 5) + 1,
-      unitPrice: Number((9.99 + i).toFixed(2)),
-      category: i % 2 === 0 ? "hardware" : "accessories",
-    })),
-  },
-];
-
-function buildMessage(
-  seed: number,
-  index: number,
-  deadLetter: boolean,
-): ServiceBusReceivedMessage {
-  const n = seed * 1000 + index;
-  // Keep enqueuedTimeUtc always in the past while making it increase with the
-  // sequence number: a larger n means a smaller offset back from "now".
-  const pastWindow = 90 * 24 * 60 * 60 * 1000; // 90 days in ms
-  const enqueued = new Date(Date.now() - Math.round(pastWindow / (n + 1)));
-  const timeToLive = 14 * 24 * 60 * 60 * 1000; // 14 days in ms
-  const applicationProperties: Record<string, string | number | boolean> = {
-    source: "checkout-service",
-    version: `1.${seed}.${index % 10}`,
-    region: seed % 2 === 0 ? "uksouth" : "ukwest",
-    priority: (index % 3) + 1,
-    retryable: index % 2 === 0,
-  };
-  return {
-    messageId: `${n.toString(16).padStart(8, "0")}-${seed}`,
-    sequenceNumber: 45000 + n,
-    enqueuedSequenceNumber: 45000 + n,
-    subject:
-      (seed + index) % 3 === 0
-        ? undefined
-        : subjects[(seed + index) % subjects.length],
-    body: bodies[(seed + index) % bodies.length],
-    contentType: "application/json",
-    correlationId: `corr-${(seed + index) % 7}`,
-    sessionId: index % 3 === 0 ? `session-${(seed + index) % 5}` : undefined,
-    enqueuedTimeUtc: enqueued,
-    expiresAtUtc: new Date(enqueued.getTime() + timeToLive),
-    timeToLive,
-    deliveryCount: deadLetter ? 10 : index % 4,
-    state: "active",
-    applicationProperties,
-    ...(deadLetter
-      ? {
-          deadLetterReason:
-            deadLetterReasons[(seed + index) % deadLetterReasons.length],
-          deadLetterErrorDescription:
-            "The message could not be processed and was dead-lettered.",
-          deadLetterSource: "checkout-processor",
-        }
-      : {}),
-  };
-}
-
-/**
- * Peek a page of messages. The real SDK peeks with `fromSequenceNumber` +
- * `maxMessageCount`; here `skip`/`top` model the same paging. `totalCount`
- * comes from the entity's count details so the caller can page the full set.
- */
 export async function peekMessages(
   params: PeekMessagesParams,
 ): Promise<PagedResult<ServiceBusReceivedMessage>> {
-  const { namespaceName, entityPath, subQueue, skip, top } = params;
-  await delay(latency(`peek:${namespaceName}:${entityPath}:${subQueue}`));
-
-  const entity = resolveEntity(namespaceName, entityPath);
-  const isDeadLetter = subQueue === "deadletter";
-  const totalCount = entity ? (isDeadLetter ? entity.dead : entity.active) : 0;
-
-  const seed =
-    Math.abs(hashString(`${namespaceName}/${entityPath}/${subQueue}`)) % 20;
-  const end = Math.min(skip + top, totalCount);
-  const value: ServiceBusReceivedMessage[] = [];
-  for (let i = skip; i < end; i++) {
-    value.push(buildMessage(seed + 1, i, isDeadLetter));
-  }
-
-  return {
-    value,
-    totalCount,
-    nextSkip: end < totalCount ? end : null,
-  };
+  const connection = await resolveConnection(params.namespaceName);
+  if (useRealApi(connection)) return realPeekMessages(connection, params);
+  return mockPeekMessages(params);
 }

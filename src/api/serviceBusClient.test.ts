@@ -1,17 +1,27 @@
 import { describe, it, expect } from "vitest";
 import { listNamespaces, listQueues, peekMessages } from "./serviceBusClient";
+import type { NamespaceConnection } from "../lib/connectionStore";
+
+const connections: NamespaceConnection[] = [
+  {
+    id: "1",
+    friendlyName: "contoso-prod",
+    serviceBusEndpoint: "sb://contoso-prod.servicebus.windows.net/",
+    auth: { kind: "sas", keyName: "RootManageSharedAccessKey", key: "secret" },
+  },
+];
 
 describe("listNamespaces", () => {
-  it("returns the seeded namespaces with https endpoints", async () => {
-    const namespaces = await listNamespaces();
-    expect(namespaces.map((n) => n.name)).toEqual([
-      "contoso-prod",
-      "contoso-staging",
-      "dev-sandbox",
-    ]);
-    expect(namespaces[0].properties.serviceBusEndpoint).toContain(
-      "contoso-prod.servicebus.windows.net",
+  it("maps configured connections to namespaces", async () => {
+    const namespaces = await listNamespaces(connections);
+    expect(namespaces.map((n) => n.name)).toEqual(["contoso-prod"]);
+    expect(namespaces[0].properties.serviceBusEndpoint).toBe(
+      "sb://contoso-prod.servicebus.windows.net/",
     );
+  });
+
+  it("returns nothing when there are no connections", async () => {
+    expect(await listNamespaces([])).toEqual([]);
   });
 });
 

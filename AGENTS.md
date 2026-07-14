@@ -25,7 +25,8 @@ real thing without touching the UI or hooks.
 - **date-fns** — relative time in the date/time formatter
 - **react-json-view-lite** for JSON body rendering
 - `@fontsource/inter` for the Inter font
-- **Tauri plugins:** `@tauri-apps/plugin-opener` (open links), `@tauri-apps/plugin-clipboard-manager` (copy)
+- **Tauri plugins:** `@tauri-apps/plugin-opener` (open links), `@tauri-apps/plugin-clipboard-manager` (copy), `@tauri-apps/plugin-http` (real Azure admin calls)
+- **Azure:** `@azure/service-bus` (real client, Tauri-only — see Real vs mock data)
 - **Testing:** Vitest + Testing Library (jsdom)
 
 ## Commands
@@ -50,13 +51,17 @@ reporter).
 src/
   api/
     types.ts               # Azure-SDK-shaped types (SBNamespace, SBQueue, ... , ServiceBusReceivedMessage)
-    serviceBusClient.ts    # Mock API: async funcs w/ simulated latency + paging
+    serviceBusClient.ts    # Public client: real Azure (Tauri/SAS) vs mock dispatch
+    mockServiceBusClient.ts# Mock API: async funcs w/ simulated latency + paging
   hooks/
     useServiceBus.ts       # React Query hooks (useNamespaces/useQueues/useTopics/useSubscriptions/useMessages)
+    useConnections.ts      # useConnections + useConnectionMutations (config store)
   lib/
     selectionRoute.ts      # URL <-> selection mapping (parse/build/ancestors)
     namespace.ts           # deriveNamespaceHost(serviceBusEndpoint)
     clipboard.ts           # copyText() — Tauri plugin w/ browser fallback
+    tauriHttp.ts           # startup: route fetch through the Tauri HTTP plugin
+    connectionStore/       # User's namespace connections (config + secrets)
   components/
     NamespacesPanel.tsx    # Left panel wrapper (header + tree + connect button)
     NamespaceTree.tsx      # Lazy-loaded tree (SimpleTreeView) + selection resolve
@@ -65,6 +70,7 @@ src/
     MessageToolbar.tsx     # Entity header, refresh, count chips, view toggle
     MessageGrid.tsx        # DataGrid (server pagination, no sorting)
     MessageDetails.tsx     # Right panel: collapsible sections + body
+    ConnectionDialog.tsx   # Add-a-connection form (SAS now, Entra scaffolded)
     messageDetails/        # CopyButton, PropertyRow, Section, properties config
     bodyRenderers/         # Content-type -> body renderer registry
     propertyFormatters/    # Property value formatter registry (see below)
@@ -106,6 +112,59 @@ selection from the URL and renders `NamespacesPanel`, `MessagesPanel`, and
   `subject`**, some **bodies exceed 1 KB**, and `enqueuedTimeUtc` is **always in
   the past and increases with `sequenceNumber`**. Preserve these when editing the
   mock.
+- Namespaces come from the **user's configured connections** (see below):
+  `listNamespaces(connections)` maps each connection to an `SBNamespace`, and
+  `sampleFor(name)` backs any namespace name with one of the 3 sample datasets
+  (exact name match reuses it, otherwise hash-assigned).
+
+## Connections / configuration store (`lib/connectionStore/`)
+
+Namespaces to connect to are stored in a user config store; the app starts empty
+until the user adds one ("Connect namespace").
+
+- `types.ts` — `NamespaceConnection` (`friendlyName`, `serviceBusEndpoint`,
+  `auth`), where `auth` is SAS (`keyName` + `key`) or Entra (`tenantId` +
+  `clientId` + optional `refreshToken`). `ConnectionStore` is the backend
+  interface (`list/add/update/remove`).
+- **Non-sensitive** fields are stored in config; **secrets** (SAS key, refresh
+  token) are kept separately and encrypted at rest.
+- **Browser backend** (`browserStore.ts`): config + AES-GCM-encrypted secrets in
+  IndexedDB (`idb.ts`), key held non-extractable (`crypto.ts`). Best-effort only
+  — a browser can't fully protect secrets. Also used inside the Tauri webview
+  today.
+- **Tauri secure backend** (OS keychain via a `keyring` Rust command layer) is
+  **not yet wired** — a follow-up. `getConnectionStore()` will switch to it under
+  `isTauri()`, mirroring `clipboard.ts`.
+- `useConnections()` / `useConnectionMutations()` wrap the store in React Query
+  (`["connections"]`); mutations invalidate `["connections"]` and `["namespaces"]`.
+- Entra sign-in is **scaffolded only** (fields stored, no OAuth yet).
+  `parseSasConnectionString` fills SAS fields from a pasted connection string.
+
+## Real vs mock data
+
+`serviceBusClient.ts` is the public client and exports
+`listNamespaces/listQueues/listTopics/listSubscriptions/peekMessages`. The
+per-entity calls **dispatch**: they resolve the `NamespaceConnection` (by
+friendly name from the store) and use the **real** Azure implementation only
+when `isTauri()` and the connection is SAS; otherwise the mock in
+`mockServiceBusClient.ts`. `@azure/service-bus` is imported **lazily inside the
+real functions** so it is never bundled for the browser (which also needs the
+Node polyfills from `vite-plugin-node-polyfills` + `global`/`process`/`Buffer`).
+
+- Real management (list + counts) uses `ServiceBusAdministrationClient` over HTTPS.
+  The webview blocks that with CORS, so at startup `installTauriHttp()`
+  (`lib/tauriHttp.ts`, invoked from `main.tsx`) replaces `globalThis.fetch` with
+  the Tauri HTTP plugin's fetch (Rust networking) for **all** traffic — Service
+  Bus endpoints aren't always `*.servicebus.windows.net` (sovereign clouds,
+  private endpoints). This is transparent to `serviceBusClient.ts`. Peek uses
+  `ServiceBusClient` receivers (AMQP/WebSocket), with `subQueueType: "deadLetter"`
+  for dead-letters.
+- **Browser can't reach Service Bus** (CORS), so the browser dev server always
+  uses the mock. Real data only works in the Tauri build; the `http:default`
+  capability allows `https://**` / `http://**`.
+- **Entra is not supported** by the real client yet (throws); SAS only.
+- Peek is cursor-based, so paging currently peeks `skip + top` and slices — fine
+  for early pages; revisit for deep pagination.
 
 ## Routing / URL state
 

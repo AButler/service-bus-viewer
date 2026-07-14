@@ -10,12 +10,15 @@ import ResizeHandle from "./components/ResizeHandle";
 import TopBar from "./components/TopBar";
 import NamespacesPanel from "./components/NamespacesPanel";
 import MessagesPanel from "./components/MessagesPanel";
+import ConnectionDialog from "./components/ConnectionDialog";
 import {
   useMessages,
   useNamespaces,
   useQueues,
   useSubscriptions,
 } from "./hooks/useServiceBus";
+import { useConnections, useConnectionMutations } from "./hooks/useConnections";
+import type { NamespaceConnectionDraft } from "./lib/connectionStore";
 import type {
   MessageCountDetails,
   ServiceBusReceivedMessage,
@@ -61,9 +64,12 @@ function App() {
   const [leftWidth, setLeftWidth] = useState(DEFAULT_LEFT_WIDTH);
   const [rightWidth, setRightWidth] = useState(DEFAULT_RIGHT_WIDTH);
   const [expandedItems, setExpandedItems] = useState<string[]>([]);
+  const [connectOpen, setConnectOpen] = useState(false);
 
   const queryClient = useQueryClient();
   const namespacesQuery = useNamespaces();
+  const connectionsQuery = useConnections();
+  const { addConnection, removeConnection } = useConnectionMutations();
   const isTreeFetching = useIsFetching({
     predicate: (query) =>
       ["namespaces", "queues", "topics", "subscriptions"].includes(
@@ -231,6 +237,21 @@ function App() {
     queryClient.invalidateQueries({ queryKey: ["messages"] });
   };
 
+  const handleConnect = (draft: NamespaceConnectionDraft) => {
+    addConnection.mutate(draft, { onSuccess: () => setConnectOpen(false) });
+  };
+
+  const handleDisconnect = (namespaceName: string) => {
+    const connection = connectionsQuery.data?.find(
+      (c) => c.friendlyName === namespaceName,
+    );
+    if (!connection) return;
+    removeConnection.mutate(connection.id);
+    if (selection?.namespaceName === namespaceName) {
+      navigate("/", { replace: true });
+    }
+  };
+
   const handleEntitySelect = (entity: SelectedEntity) => {
     navigate(buildEntityPath(entity, "active"));
   };
@@ -285,6 +306,8 @@ function App() {
           showConnect={hasNoNamespaces}
           onRefresh={handleRefreshNamespaces}
           onCollapseAll={() => setExpandedItems([])}
+          onConnect={() => setConnectOpen(true)}
+          onDisconnect={handleDisconnect}
         />
 
         <ResizeHandle
@@ -335,6 +358,13 @@ function App() {
           </Box>
         </Paper>
       </Box>
+
+      <ConnectionDialog
+        open={connectOpen}
+        onClose={() => setConnectOpen(false)}
+        onAdd={handleConnect}
+        busy={addConnection.isPending}
+      />
     </Box>
   );
 }

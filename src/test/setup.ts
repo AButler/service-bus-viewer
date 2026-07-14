@@ -1,6 +1,23 @@
 import "@testing-library/jest-dom/vitest";
-import { afterEach } from "vitest";
+import "fake-indexeddb/auto";
+import { webcrypto } from "node:crypto";
+import { IDBFactory } from "fake-indexeddb";
+import { afterEach, beforeEach } from "vitest";
 import { cleanup } from "@testing-library/react";
+
+// WebCrypto (jsdom doesn't provide `crypto.subtle`) — used by the browser
+// connection store to encrypt secrets at rest.
+if (!globalThis.crypto?.subtle) {
+  Object.defineProperty(globalThis, "crypto", {
+    value: webcrypto,
+    configurable: true,
+  });
+}
+
+// Reset IndexedDB between tests so persisted connections don't leak.
+beforeEach(() => {
+  globalThis.indexedDB = new IDBFactory();
+});
 
 afterEach(() => {
   cleanup();

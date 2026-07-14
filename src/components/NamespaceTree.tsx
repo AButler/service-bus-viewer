@@ -22,6 +22,7 @@ interface NamespaceTreeProps {
   onSelect: (entity: SelectedEntity) => void;
   expandedItems: string[];
   setExpandedItems: React.Dispatch<React.SetStateAction<string[]>>;
+  onDisconnect: (namespaceName: string) => void;
 }
 
 export default function NamespaceTree({
@@ -29,6 +30,7 @@ export default function NamespaceTree({
   onSelect,
   expandedItems,
   setExpandedItems,
+  onDisconnect,
 }: NamespaceTreeProps) {
   const namespaces = useNamespaces();
   const resolveSelection = useResolveSelection();
@@ -64,8 +66,8 @@ export default function NamespaceTree({
   } | null>(null);
 
   const handleDisconnect = () => {
+    if (namespaceMenu) onDisconnect(namespaceMenu.namespaceName);
     setNamespaceMenu(null);
-    // TODO: disconnect the namespace.
   };
 
   if (namespaces.isPending) {

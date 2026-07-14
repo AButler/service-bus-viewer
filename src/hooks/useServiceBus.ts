@@ -10,11 +10,14 @@ import {
   peekMessages,
   type PeekMessagesParams,
 } from "../api/serviceBusClient";
+import { useConnections } from "./useConnections";
 
 export function useNamespaces() {
+  const connections = useConnections();
   return useQuery({
-    queryKey: ["namespaces"],
-    queryFn: listNamespaces,
+    queryKey: ["namespaces", connections.data?.map((c) => c.id) ?? []],
+    queryFn: () => listNamespaces(connections.data ?? []),
+    enabled: connections.isSuccess,
   });
 }
 

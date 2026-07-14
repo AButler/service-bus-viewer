@@ -17,19 +17,21 @@ import UnfoldLessRoundedIcon from "@mui/icons-material/UnfoldLessRounded";
 interface NamespacesHeaderProps {
   onRefresh: () => void;
   onCollapseAll: () => void;
+  onConnect: () => void;
 }
 
 /** "Namespaces" panel header with hover actions and an overflow menu. */
 export default function NamespacesHeader({
   onRefresh,
   onCollapseAll,
+  onConnect,
 }: NamespacesHeaderProps) {
   const [anchorEl, setAnchorEl] = useState<HTMLElement | null>(null);
   const open = Boolean(anchorEl);
 
   const handleConnect = () => {
     setAnchorEl(null);
-    // TODO: launch the connect-namespace flow.
+    onConnect();
   };
 
   return (

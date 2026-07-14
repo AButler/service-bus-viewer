@@ -98,6 +98,15 @@ export interface ServiceBusReceivedMessage {
 
 export type SubQueue = "main" | "deadletter";
 
+/** Parameters for peeking a page of messages from an entity. */
+export interface PeekMessagesParams {
+  namespaceName: string;
+  entityPath: string;
+  subQueue: SubQueue;
+  skip: number;
+  top: number;
+}
+
 /**
  * A page of results. Mirrors the ARM `{ value, nextLink }` envelope, augmented
  * with `totalCount` so paged callers can display the full total.

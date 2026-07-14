@@ -13,6 +13,8 @@ interface NamespacesPanelProps {
   showConnect: boolean;
   onRefresh: () => void;
   onCollapseAll: () => void;
+  onConnect: () => void;
+  onDisconnect: (namespaceName: string) => void;
 }
 
 /** Left panel: the namespace header and the lazy-loaded entity tree. */
@@ -26,6 +28,8 @@ export default function NamespacesPanel({
   showConnect,
   onRefresh,
   onCollapseAll,
+  onConnect,
+  onDisconnect,
 }: NamespacesPanelProps) {
   return (
     <Paper
@@ -40,7 +44,11 @@ export default function NamespacesPanel({
       }}
     >
       <Box sx={{ position: "relative" }}>
-        <NamespacesHeader onRefresh={onRefresh} onCollapseAll={onCollapseAll} />
+        <NamespacesHeader
+          onRefresh={onRefresh}
+          onCollapseAll={onCollapseAll}
+          onConnect={onConnect}
+        />
         <Divider />
         {loading && (
           <LinearProgress
@@ -68,6 +76,7 @@ export default function NamespacesPanel({
           onSelect={onSelect}
           expandedItems={expandedItems}
           setExpandedItems={setExpandedItems}
+          onDisconnect={onDisconnect}
         />
         {showConnect && (
           <Box sx={{ px: 1.5, pt: 0.5, pb: 1.5 }}>
@@ -75,6 +84,7 @@ export default function NamespacesPanel({
               fullWidth
               variant="outlined"
               startIcon={<AddLinkRoundedIcon />}
+              onClick={onConnect}
               sx={{
                 color: "text.secondary",
                 borderColor: "divider",

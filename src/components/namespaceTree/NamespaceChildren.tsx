@@ -34,6 +34,11 @@ export default function NamespaceChildren({
       >
         {queues.isPending ? (
           <LoadingItem parentId={queuesGroupId} />
+        ) : queues.isError ? (
+          <MessageItem
+            parentId={queuesGroupId}
+            text={`Failed to load: ${(queues.error as Error).message}`}
+          />
         ) : queues.data && queues.data.length > 0 ? (
           queues.data.map((q) => (
             <QueueItem key={q.id} namespaceName={namespaceName} queue={q} />
@@ -56,6 +61,11 @@ export default function NamespaceChildren({
       >
         {topics.isPending ? (
           <LoadingItem parentId={topicsGroupId} />
+        ) : topics.isError ? (
+          <MessageItem
+            parentId={topicsGroupId}
+            text={`Failed to load: ${(topics.error as Error).message}`}
+          />
         ) : topics.data && topics.data.length > 0 ? (
           topics.data.map((t) => (
             <TopicItem
