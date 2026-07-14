@@ -170,12 +170,15 @@ polyfills from `vite-plugin-node-polyfills` + `global`/`process`/`Buffer`).
 
 - Real management (list + counts) uses `ServiceBusAdministrationClient` over HTTPS.
   The webview blocks that with CORS, so at startup `installTauriHttp()`
-  (`lib/tauriHttp.ts`, invoked from `main.tsx`) replaces `globalThis.fetch` with
-  the Tauri HTTP plugin's fetch (Rust networking) for **all** traffic — Service
-  Bus endpoints aren't always `*.servicebus.windows.net` (sovereign clouds,
-  private endpoints). This is transparent to the clients. Peek uses
-  `ServiceBusClient` receivers (AMQP/WebSocket), with `subQueueType: "deadLetter"`
-  for dead-letters.
+  (`lib/tauriHttp.ts`, invoked from `main.tsx`) wraps `globalThis.fetch` so
+  **external** http(s) requests go through the Tauri HTTP plugin's fetch (Rust
+  networking) while same-origin and Tauri-internal traffic
+  (`ipc.localhost`/`tauri.localhost`/`asset.localhost`) stay on the native fetch.
+  This escapes CORS for Service Bus endpoints (which aren't always
+  `*.servicebus.windows.net` — sovereign clouds, private endpoints) **without**
+  recursing through Tauri's own fetch-based IPC (which would exhaust memory).
+  This is transparent to the clients. Peek uses `ServiceBusClient` receivers
+  (AMQP/WebSocket), with `subQueueType: "deadLetter"` for dead-letters.
 - **Browser can't reach Service Bus** (CORS), so the browser dev server always
   uses the mock. Real data only works in the Tauri build; the `http:default`
   capability allows `https://**` / `http://**`.

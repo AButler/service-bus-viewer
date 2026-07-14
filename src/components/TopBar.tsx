@@ -11,7 +11,11 @@ export default function TopBar() {
     <AppBar position="static">
       <Toolbar variant="dense" sx={{ gap: 1 }} data-tauri-drag-region>
         <AppIcon size={26} />
-        <Typography variant="h6" sx={{ fontWeight: 700 }} data-tauri-drag-region>
+        <Typography
+          variant="h6"
+          sx={{ fontWeight: 700 }}
+          data-tauri-drag-region
+        >
           Service Bus Viewer
         </Typography>
         <Box sx={{ flexGrow: 1 }} data-tauri-drag-region />
