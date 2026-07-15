@@ -64,6 +64,17 @@ async function codeChallenge(verifier: string): Promise<string> {
 
 // --- Token endpoint -----------------------------------------------------------
 
+/** Error from the token endpoint, carrying the OAuth `error` code. */
+export class EntraTokenError extends Error {
+  constructor(
+    message: string,
+    readonly code?: string,
+  ) {
+    super(message);
+    this.name = "EntraTokenError";
+  }
+}
+
 async function tokenRequest(
   tenantId: string,
   body: URLSearchParams,
@@ -81,8 +92,9 @@ async function tokenRequest(
     error_description?: string;
   };
   if (!response.ok || !json.access_token) {
-    throw new Error(
+    throw new EntraTokenError(
       json.error_description ?? json.error ?? "Entra token request failed.",
+      json.error,
     );
   }
   return {
@@ -208,11 +220,37 @@ export function createEntraCredential(
 ): TokenCredential {
   let cached: EntraTokens | undefined;
   let refreshToken = auth.refreshToken;
+  let inFlight: Promise<EntraTokens> | undefined;
+
+  // Acquire fresh tokens: refresh normally, but if the refresh token is
+  // expired/revoked (`invalid_grant` — e.g. a SPA refresh token's fixed ~24h
+  // lifetime that can't be renewed, AADSTS700084), fall back to an interactive
+  // sign-in so the user gets a new refresh token and can keep working.
+  const acquire = async (): Promise<EntraTokens> => {
+    try {
+      return await refreshEntraToken({ ...auth, refreshToken });
+    } catch (err) {
+      if (
+        isTauri() &&
+        err instanceof EntraTokenError &&
+        err.code === "invalid_grant"
+      ) {
+        return signInWithEntra(auth);
+      }
+      throw err;
+    }
+  };
 
   return {
     async getToken() {
       if (!cached || cached.expiresAt < Date.now() + 60_000) {
-        cached = await refreshEntraToken({ ...auth, refreshToken });
+        // De-dupe concurrent acquisitions so we never open two sign-in windows.
+        inFlight ??= acquire();
+        try {
+          cached = await inFlight;
+        } finally {
+          inFlight = undefined;
+        }
         if (cached.refreshToken && cached.refreshToken !== refreshToken) {
           refreshToken = cached.refreshToken;
           onRefreshToken?.(refreshToken);
