@@ -28,4 +28,6 @@ export interface ConnectionStore {
   add(draft: NamespaceConnectionDraft): Promise<NamespaceConnection>;
   update(connection: NamespaceConnection): Promise<void>;
   remove(id: string): Promise<void>;
+  /** Persist a new ordering of connections by their ids. */
+  reorder(orderedIds: string[]): Promise<void>;
 }

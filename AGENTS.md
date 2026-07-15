@@ -136,7 +136,8 @@ until the user adds one ("Connect namespace").
   `auth`), where `auth` is SAS (`keyName` + `key`) or Entra (`tenantId` +
   optional `refreshToken`). The Entra application (client) ID is a constant
   (`ENTRA_CLIENT_ID` in `lib/entraAuth.ts`), not stored per connection.
-  `ConnectionStore` is the backend interface (`list/add/update/remove`).
+  `ConnectionStore` is the backend interface
+  (`list/add/update/remove/reorder`).
 - **Non-sensitive** fields are stored in config; **secrets** (SAS key, refresh
   token) are kept separately and encrypted at rest.
 - **Browser backend** (`browserStore.ts`): config + AES-GCM-encrypted secrets in

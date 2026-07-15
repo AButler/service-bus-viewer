@@ -12,6 +12,7 @@ import {
 import LinkOffRoundedIcon from "@mui/icons-material/LinkOffRounded";
 import EditRoundedIcon from "@mui/icons-material/EditRounded";
 import { useNamespaces } from "../hooks/useServiceBus";
+import { reorderList } from "../lib/reorder";
 import NamespaceItem from "./namespaceTree/NamespaceItem";
 import { useResolveSelection } from "./namespaceTree/useResolveSelection";
 import type { SelectedEntity } from "./namespaceTree/types";
@@ -25,6 +26,7 @@ interface NamespaceTreeProps {
   setExpandedItems: React.Dispatch<React.SetStateAction<string[]>>;
   onDisconnect: (namespaceName: string) => void;
   onEdit: (namespaceName: string) => void;
+  onReorder: (orderedNamespaceNames: string[]) => void;
 }
 
 export default function NamespaceTree({
@@ -34,6 +36,7 @@ export default function NamespaceTree({
   setExpandedItems,
   onDisconnect,
   onEdit,
+  onReorder,
 }: NamespaceTreeProps) {
   const namespaces = useNamespaces();
   const resolveSelection = useResolveSelection();
@@ -78,6 +81,40 @@ export default function NamespaceTree({
     setNamespaceMenu(null);
   };
 
+  // Drag-and-drop reordering of top-level namespaces.
+  const [dragName, setDragName] = useState<string | null>(null);
+  const [dropTarget, setDropTarget] = useState<{
+    name: string;
+    edge: "top" | "bottom";
+  } | null>(null);
+
+  const handleDragOverItem = (name: string) => {
+    if (dragName === null || name === dragName) return;
+    const names = namespaces.data?.map((ns) => ns.name) ?? [];
+    const edge =
+      names.indexOf(dragName) < names.indexOf(name) ? "bottom" : "top";
+    setDropTarget((current) =>
+      current?.name === name && current.edge === edge
+        ? current
+        : { name, edge },
+    );
+  };
+
+  const handleDropItem = (name: string) => {
+    if (dragName !== null && name !== dragName) {
+      const names = namespaces.data?.map((ns) => ns.name) ?? [];
+      const next = reorderList(names, dragName, name);
+      if (next !== names) onReorder(next);
+    }
+    setDragName(null);
+    setDropTarget(null);
+  };
+
+  const handleDragEndItem = () => {
+    setDragName(null);
+    setDropTarget(null);
+  };
+
   if (namespaces.isPending) {
     return (
       <Box sx={{ display: "flex", alignItems: "center", gap: 1, p: 2 }}>
@@ -111,6 +148,12 @@ export default function NamespaceTree({
             onOpenMenu={(anchorEl, namespaceName) =>
               setNamespaceMenu({ anchorEl, namespaceName })
             }
+            dragging={dragName === ns.name}
+            dropEdge={dropTarget?.name === ns.name ? dropTarget.edge : null}
+            onDragStartItem={setDragName}
+            onDragOverItem={handleDragOverItem}
+            onDropItem={handleDropItem}
+            onDragEndItem={handleDragEndItem}
           />
         ))}
       </SimpleTreeView>

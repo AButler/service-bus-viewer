@@ -118,4 +118,15 @@ export const browserConnectionStore: ConnectionStore = {
     const stored = await readAll();
     await writeAll(stored.filter((c) => c.id !== id));
   },
+
+  async reorder(orderedIds: string[]) {
+    const stored = await readAll();
+    const byId = new Map(stored.map((c) => [c.id, c]));
+    const ordered = orderedIds
+      .map((id) => byId.get(id))
+      .filter((c): c is StoredConnection => c !== undefined);
+    // Preserve any connections not covered by orderedIds (defensive).
+    const remaining = stored.filter((c) => !orderedIds.includes(c.id));
+    await writeAll([...ordered, ...remaining]);
+  },
 };

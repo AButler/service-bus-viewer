@@ -14,11 +14,23 @@ export default function NamespaceItem({
   expandedItems,
   menuOpen,
   onOpenMenu,
+  dragging,
+  dropEdge,
+  onDragStartItem,
+  onDragOverItem,
+  onDropItem,
+  onDragEndItem,
 }: {
   namespace: SBNamespace;
   expandedItems: string[];
   menuOpen: boolean;
   onOpenMenu: (anchor: HTMLElement, namespaceName: string) => void;
+  dragging: boolean;
+  dropEdge: "top" | "bottom" | null;
+  onDragStartItem: (namespaceName: string) => void;
+  onDragOverItem: (namespaceName: string) => void;
+  onDropItem: (namespaceName: string) => void;
+  onDragEndItem: () => void;
 }) {
   const itemId = `namespace:${namespace.name}`;
   const isExpanded = expandedItems.includes(itemId);
@@ -28,6 +40,41 @@ export default function NamespaceItem({
   return (
     <TreeItem
       itemId={itemId}
+      slotProps={{
+        root: {
+          onDragOver: (event) => {
+            event.preventDefault();
+            event.dataTransfer.dropEffect = "move";
+            onDragOverItem(namespace.name);
+          },
+          onDrop: (event) => {
+            event.preventDefault();
+            onDropItem(namespace.name);
+          },
+          style: {
+            boxShadow:
+              dropEdge === "top"
+                ? "inset 0 2px 0 0 var(--mui-palette-primary-main)"
+                : dropEdge === "bottom"
+                  ? "inset 0 -2px 0 0 var(--mui-palette-primary-main)"
+                  : undefined,
+          },
+        },
+        content: {
+          draggable: true,
+          onDragStart: (event) => {
+            event.dataTransfer.effectAllowed = "move";
+            // Some browsers (Firefox) require drag data for a drag to start.
+            event.dataTransfer.setData("text/plain", namespace.name);
+            onDragStartItem(namespace.name);
+          },
+          onDragEnd: onDragEndItem,
+          style: {
+            opacity: dragging ? 0.4 : 1,
+            cursor: dragging ? "grabbing" : undefined,
+          },
+        },
+      }}
       label={
         <Box
           sx={{

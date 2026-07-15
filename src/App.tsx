@@ -81,7 +81,7 @@ function App() {
   const queryClient = useQueryClient();
   const namespacesQuery = useNamespaces();
   const connectionsQuery = useConnections();
-  const { addConnection, updateConnection, removeConnection } =
+  const { addConnection, updateConnection, removeConnection, reorderConnections } =
     useConnectionMutations();
   const isTreeFetching = useIsFetching({
     predicate: (query) =>
@@ -285,6 +285,16 @@ function App() {
     }
   };
 
+  const handleReorder = (orderedNamespaceNames: string[]) => {
+    const byName = new Map(
+      (connectionsQuery.data ?? []).map((c) => [c.friendlyName, c.id]),
+    );
+    const orderedIds = orderedNamespaceNames
+      .map((name) => byName.get(name))
+      .filter((id): id is string => id !== undefined);
+    if (orderedIds.length > 0) reorderConnections.mutate(orderedIds);
+  };
+
   const handleEntitySelect = (entity: SelectedEntity) => {
     navigate(buildEntityPath(entity, "active"));
   };
@@ -346,6 +356,7 @@ function App() {
           }}
           onDisconnect={handleDisconnect}
           onEdit={handleEdit}
+          onReorder={handleReorder}
         />
 
         <ResizeHandle

@@ -16,6 +16,7 @@ interface NamespacesPanelProps {
   onConnect: () => void;
   onDisconnect: (namespaceName: string) => void;
   onEdit: (namespaceName: string) => void;
+  onReorder: (orderedNamespaceNames: string[]) => void;
 }
 
 /** Left panel: the namespace header and the lazy-loaded entity tree. */
@@ -32,6 +33,7 @@ export default function NamespacesPanel({
   onConnect,
   onDisconnect,
   onEdit,
+  onReorder,
 }: NamespacesPanelProps) {
   return (
     <Paper
@@ -80,6 +82,7 @@ export default function NamespacesPanel({
           setExpandedItems={setExpandedItems}
           onDisconnect={onDisconnect}
           onEdit={onEdit}
+          onReorder={onReorder}
         />
         {showConnect && (
           <Box sx={{ px: 1.5, pt: 0.5, pb: 1.5 }}>
