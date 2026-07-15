@@ -193,8 +193,10 @@ also needs the Node polyfills from `vite-plugin-node-polyfills` +
   This is transparent to the clients. Peek uses `ServiceBusClient` receivers
   (AMQP/WebSocket), with `subQueueType: "deadLetter"`/`"transferDeadLetter"` for
   the dead-letter sub-queues; `scheduled`/`deferred`/`active` share the main
-  queue and are filtered by message `state`. Topic-level scheduled messages have
-  no data-plane receiver, so the real client returns empty for them (TODO).
+  queue and are filtered by message `state`. Topic-level scheduled messages are
+  peeked via a management-link peek on the topic path (topics can't be received
+  from, but their scheduled messages live on the topic), with the count from
+  `getTopicRuntimeProperties`.
 - **Browser can't reach Service Bus** (CORS), so the browser dev server always
   uses the mock. Real data only works in the Tauri build; the `http:default`
   capability allows `https://**` / `http://**`.

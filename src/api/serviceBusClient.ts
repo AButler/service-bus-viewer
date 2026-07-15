@@ -277,6 +277,7 @@ export class ServiceBusClient implements ServiceBusApi {
           messageCount: s.totalMessageCount ?? 0,
           status: cfg?.status ?? "Unknown",
           maxDeliveryCount: cfg?.maxDeliveryCount ?? 10,
+          forwardTo: cfg?.forwardTo,
         },
       });
     }
@@ -288,38 +289,39 @@ export class ServiceBusClient implements ServiceBusApi {
   ): Promise<PagedResult<ServiceBusReceivedMessage>> {
     const { entityPath, entityType, view, skip, top } = params;
 
-    // Topic-level scheduled messages have no data-plane receiver (topics can't
-    // be received from), so there is nothing to peek. TODO: surface via a
-    // management API if one becomes available.
-    if (entityType === "topic") {
-      return { value: [], totalCount: 0, nextSkip: null };
-    }
-
     // Total count comes from the entity's runtime properties.
     const admin = await this.adminClient();
-    const rt =
-      entityType === "subscription"
-        ? await admin.getSubscriptionRuntimeProperties(
-            entityPath.split("/")[0],
-            entityPath.split("/")[1],
-          )
-        : await admin.getQueueRuntimeProperties(entityPath);
-    const counts = rt as {
-      activeMessageCount: number;
-      deadLetterMessageCount: number;
-      scheduledMessageCount?: number;
-      transferDeadLetterMessageCount?: number;
-    };
-    const totalCount =
-      view === "deadletter"
-        ? counts.deadLetterMessageCount
-        : view === "transferDeadletter"
-          ? (counts.transferDeadLetterMessageCount ?? 0)
-          : view === "scheduled"
-            ? (counts.scheduledMessageCount ?? 0)
-            : view === "deferred"
-              ? 0 // no runtime count for deferred; best-effort
-              : counts.activeMessageCount;
+    let totalCount: number;
+    if (entityType === "topic") {
+      // Topics can't be received from, but their scheduled messages live on the
+      // topic itself and can be peeked via a management link on the topic path.
+      const rt = await admin.getTopicRuntimeProperties(entityPath);
+      totalCount = rt.scheduledMessageCount ?? 0;
+    } else {
+      const rt =
+        entityType === "subscription"
+          ? await admin.getSubscriptionRuntimeProperties(
+              entityPath.split("/")[0],
+              entityPath.split("/")[1],
+            )
+          : await admin.getQueueRuntimeProperties(entityPath);
+      const counts = rt as {
+        activeMessageCount: number;
+        deadLetterMessageCount: number;
+        scheduledMessageCount?: number;
+        transferDeadLetterMessageCount?: number;
+      };
+      totalCount =
+        view === "deadletter"
+          ? counts.deadLetterMessageCount
+          : view === "transferDeadletter"
+            ? (counts.transferDeadLetterMessageCount ?? 0)
+            : view === "scheduled"
+              ? (counts.scheduledMessageCount ?? 0)
+              : view === "deferred"
+                ? 0 // no runtime count for deferred; best-effort
+                : counts.activeMessageCount;
+    }
 
     const { ServiceBusClient: SdkClient } = await import("@azure/service-bus");
     let lastError: unknown;

@@ -24,6 +24,8 @@ interface RawEntity {
   name: string;
   active: number;
   dead: number;
+  /** Set when the subscription auto-forwards to another entity. */
+  forwardTo?: string;
 }
 
 interface RawTopic {
@@ -52,7 +54,7 @@ const rawNamespaces: RawNamespace[] = [
         name: "order-events",
         subscriptions: [
           { name: "fulfilment", active: 17, dead: 1 },
-          { name: "analytics", active: 5, dead: 0 },
+          { name: "analytics", active: 5, dead: 0, forwardTo: "analytics-agg" },
           { name: "audit", active: 230, dead: 12 },
         ],
       },
@@ -376,6 +378,7 @@ async function mockListSubscriptions(
       messageCount: s.active + s.dead,
       status: "Active",
       maxDeliveryCount: 10,
+      forwardTo: s.forwardTo,
     },
   }));
 }

@@ -26,6 +26,10 @@ export default function TopicItem({
   const isExpanded = expandedItems.includes(itemId);
   const subscriptions = useSubscriptions(namespaceName, topic.name, isExpanded);
 
+  // Auto-forwarding subscriptions don't retain messages, so hide them.
+  const visibleSubscriptions =
+    subscriptions.data?.filter((s) => !s.properties.forwardTo) ?? [];
+
   return (
     <TreeItem
       itemId={itemId}
@@ -42,8 +46,8 @@ export default function TopicItem({
         <LoadingItem parentId={itemId} />
       ) : (
         <>
-          {subscriptions.data && subscriptions.data.length > 0 ? (
-            subscriptions.data.map((s) => (
+          {visibleSubscriptions.length > 0 ? (
+            visibleSubscriptions.map((s) => (
               <SubscriptionItem
                 key={s.id}
                 namespaceName={namespaceName}

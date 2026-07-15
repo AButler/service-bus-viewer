@@ -70,6 +70,8 @@ export interface SBSubscription {
     messageCount: number;
     status: EntityStatus;
     maxDeliveryCount: number;
+    /** Destination entity when the subscription auto-forwards, else undefined. */
+    forwardTo?: string;
   };
 }
 

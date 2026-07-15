@@ -37,6 +37,13 @@ export default function QueueItem({
     >
       <SubQueueItem
         baseItemId={baseItemId}
+        view="active"
+        label="Messages"
+        icon={<InboxRoundedIcon fontSize="small" color="primary" />}
+        count={activeMessageCount}
+      />
+      <SubQueueItem
+        baseItemId={baseItemId}
         view="deadletter"
         label="Dead-letter"
         icon={<ReportProblemRoundedIcon fontSize="small" color="error" />}
