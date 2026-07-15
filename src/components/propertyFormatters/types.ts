@@ -5,4 +5,4 @@ export type FormatterDetail = "simple" | "full";
 export type PropertyFormatter = (
   value: unknown,
   detail: FormatterDetail,
-) => string;
+) => string | undefined;

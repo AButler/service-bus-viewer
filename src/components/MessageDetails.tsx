@@ -38,14 +38,18 @@ const SECTION_TITLES = [
 function renderPropertyRow(message: ServiceBusReceivedMessage, name: string) {
   const raw = getRawPropertyValue(message, name);
   const hasValue = raw !== undefined && raw !== null;
-  const display = hasValue ? getPropertyFormatter(name)(raw, "full") : "\u2014";
+  const formatted = hasValue
+    ? getPropertyFormatter(name)(raw, "full")
+    : undefined;
+  const hasDisplay = formatted !== undefined && formatted !== null;
+  const display = hasDisplay ? formatted : "\u2014";
   return (
     <PropertyRow
       key={name}
       label={propertyLabels[name] ?? name}
       rawName={name}
       value={display}
-      copyValue={hasValue ? display : undefined}
+      copyValue={hasDisplay ? display : undefined}
     />
   );
 }

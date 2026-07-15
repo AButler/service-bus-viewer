@@ -92,8 +92,8 @@ export interface ServiceBusReceivedMessage {
   sessionId?: string;
   partitionKey?: string;
   enqueuedTimeUtc: Date;
-  expiresAtUtc: Date;
-  timeToLive: number;
+  expiresAtUtc?: Date;
+  timeToLive?: number;
   deliveryCount: number;
   state: "active" | "deferred" | "scheduled";
   applicationProperties?: Record<string, ApplicationPropertyValue>;

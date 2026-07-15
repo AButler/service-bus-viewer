@@ -11,6 +11,7 @@ const formatters: Record<string, PropertyFormatter> = {
   size: formatBytes,
   timeToLive: formatDuration,
   enqueuedTimeUtc: formatDateTime,
+  expiresAtUtc: formatDateTime,
 };
 
 /** Default formatter: render the value as a string. */

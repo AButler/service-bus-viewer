@@ -86,9 +86,10 @@ function mapMessage(m: SdkMessage): ServiceBusReceivedMessage {
     correlationId:
       m.correlationId != null ? String(m.correlationId) : undefined,
     sessionId: m.sessionId,
+    partitionKey: m.partitionKey,
     enqueuedTimeUtc: m.enqueuedTimeUtc ?? new Date(),
-    expiresAtUtc: m.expiresAtUtc ?? new Date(),
-    timeToLive: m.timeToLive ?? 0,
+    expiresAtUtc: m.expiresAtUtc,
+    timeToLive: m.timeToLive,
     deliveryCount: m.deliveryCount ?? 0,
     state: m.state,
     applicationProperties:

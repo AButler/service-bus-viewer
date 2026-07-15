@@ -1,7 +1,6 @@
 import {
   Box,
   Chip,
-  Divider,
   IconButton,
   ToggleButton,
   ToggleButtonGroup,
@@ -27,9 +26,9 @@ interface MessageToolbarProps {
 }
 
 /**
- * Header above the message grid: shows the selected entity, active/dead-letter
- * count chips (collapsed on narrow containers) and the messages/dead-letter view
- * toggle.
+ * Header above the message grid: the selected entity name/namespace and the
+ * messages/dead-letter view toggle (with counts) share the top row, with a
+ * toolbar of actions (refresh) beneath them.
  */
 export default function MessageToolbar({
   entity,
@@ -44,126 +43,130 @@ export default function MessageToolbar({
     <Box
       sx={{
         display: "flex",
-        alignItems: "center",
-        gap: 1,
-        px: 2,
-        py: 1.5,
-        borderBottom: 1,
-        borderColor: "divider",
+        flexDirection: "column",
         minWidth: 0,
       }}
     >
-      <Box sx={{ minWidth: 0 }}>
-        <Typography variant="subtitle1" noWrap>
-          {entity ? entity.label : "No entity selected"}
-        </Typography>
-        {entity && (
-          <Tooltip title={entity.namespaceHost}>
-            <Typography
-              variant="caption"
-              color="text.secondary"
-              component="div"
-              noWrap
-              sx={{ display: "inline-block" }}
-            >
-              {entity.namespaceName}
-            </Typography>
-          </Tooltip>
-        )}
-      </Box>
-      {entity && (
-        <Box
-          sx={{
-            display: "flex",
-            alignItems: "center",
-            gap: 1,
-            flexShrink: 0,
-          }}
+      <Box
+        sx={{
+          display: "flex",
+          alignItems: "flex-start",
+          gap: 1,
+          minWidth: 0,
+          px: 2,
+          pt: 1.5,
+          pb: 1,
+        }}
+      >
+        <Box sx={{ minWidth: 0, flexGrow: 1 }}>
+          <Typography variant="subtitle1" noWrap>
+            {entity ? entity.label : "No entity selected"}
+          </Typography>
+          {entity && (
+            <Tooltip title={entity.namespaceHost}>
+              <Typography
+                variant="caption"
+                color="text.secondary"
+                component="div"
+                noWrap
+                sx={{ display: "inline-block" }}
+              >
+                {entity.namespaceName}
+              </Typography>
+            </Tooltip>
+          )}
+        </Box>
+        <ToggleButtonGroup
+          size="small"
+          exclusive
+          value={view}
+          onChange={onViewChange}
+          disabled={entity === null}
+          aria-label="Message view"
+          sx={{ flexShrink: 0 }}
         >
-          <Divider orientation="vertical" flexItem sx={{ mx: 1 }} />
-          <Tooltip title="Refresh messages">
+          <ToggleButton
+            value="active"
+            aria-label="Active messages"
+            sx={{
+              whiteSpace: "nowrap",
+              "&.Mui-selected": {
+                color: "primary.main",
+                borderColor: "primary.main",
+                backgroundColor: (theme) =>
+                  alpha(theme.palette.primary.main, 0.12),
+                "&:hover": {
+                  backgroundColor: (theme) =>
+                    alpha(theme.palette.primary.main, 0.2),
+                },
+              },
+            }}
+          >
+            <InboxRoundedIcon fontSize="small" sx={{ mr: 0.5 }} />
+            Messages
+            <Chip
+              size="small"
+              label={activeCount}
+              color="primary"
+              sx={{ ml: 0.75 }}
+            />
+          </ToggleButton>
+          <ToggleButton
+            value="deadletter"
+            aria-label="Dead-letter messages"
+            sx={{
+              whiteSpace: "nowrap",
+              "&.Mui-selected": {
+                color: "error.main",
+                borderColor: "error.main",
+                backgroundColor: (theme) =>
+                  alpha(theme.palette.error.main, 0.12),
+                "&:hover": {
+                  backgroundColor: (theme) =>
+                    alpha(theme.palette.error.main, 0.2),
+                },
+              },
+            }}
+          >
+            <ReportProblemRoundedIcon fontSize="small" sx={{ mr: 0.5 }} />
+            Dead-letter
+            <Chip
+              size="small"
+              label={deadLetterCount}
+              color="error"
+              sx={{ ml: 0.75 }}
+            />
+          </ToggleButton>
+        </ToggleButtonGroup>
+      </Box>
+      <Box
+        sx={{
+          display: "flex",
+          alignItems: "center",
+          gap: 0.5,
+          minWidth: 0,
+          px: 1,
+          py: 0.5,
+          borderTop: 1,
+          borderBottom: 1,
+          borderColor: "divider",
+          bgcolor: (theme) =>
+            `var(--DataGrid-containerBackground, ${(theme.vars || theme).palette.action.hover})`,
+        }}
+      >
+        <Tooltip title="Refresh messages">
+          <span>
             <IconButton
               size="small"
               aria-label="Refresh messages"
               onClick={onRefresh}
+              disabled={entity === null}
             >
               <RefreshRoundedIcon fontSize="small" />
             </IconButton>
-          </Tooltip>
-          <Box
-            sx={{
-              display: "flex",
-              alignItems: "center",
-              gap: 1,
-              "@container (max-width: 620px)": { display: "none" },
-            }}
-          >
-            <Divider orientation="vertical" flexItem sx={{ mx: 1 }} />
-            <Chip
-              size="small"
-              label={`${activeCount} messages`}
-              color="primary"
-              variant="outlined"
-            />
-            <Chip
-              size="small"
-              label={`${deadLetterCount} dead letters`}
-              color="error"
-              variant="outlined"
-            />
-          </Box>
-        </Box>
-      )}
-      <Box sx={{ flexGrow: 1 }} />
-      <ToggleButtonGroup
-        size="small"
-        exclusive
-        value={view}
-        onChange={onViewChange}
-        disabled={entity === null}
-        aria-label="Message view"
-        sx={{ flexShrink: 0 }}
-      >
-        <ToggleButton
-          value="active"
-          aria-label="Active messages"
-          sx={{
-            whiteSpace: "nowrap",
-            "&.Mui-selected": {
-              color: "primary.main",
-              borderColor: "primary.main",
-              backgroundColor: (theme) =>
-                alpha(theme.palette.primary.main, 0.12),
-              "&:hover": {
-                backgroundColor: (theme) =>
-                  alpha(theme.palette.primary.main, 0.2),
-              },
-            },
-          }}
-        >
-          <InboxRoundedIcon fontSize="small" sx={{ mr: 0.5 }} />
-          Messages
-        </ToggleButton>
-        <ToggleButton
-          value="deadletter"
-          aria-label="Dead-letter messages"
-          sx={{
-            whiteSpace: "nowrap",
-            "&.Mui-selected": {
-              color: "error.main",
-              borderColor: "error.main",
-              backgroundColor: (theme) => alpha(theme.palette.error.main, 0.12),
-              "&:hover": {
-                backgroundColor: (theme) =>
-                  alpha(theme.palette.error.main, 0.2),
-              },
-            },
-          }}
-        >
-          <ReportProblemRoundedIcon fontSize="small" sx={{ mr: 0.5 }} />
-          Dead-letter
-        </ToggleButton>
-      </ToggleButtonGroup>
+          </span>
+        </Tooltip>
+      </Box>
     </Box>
   );
 }

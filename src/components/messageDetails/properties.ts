@@ -3,13 +3,14 @@ import type { ServiceBusReceivedMessage } from "../../api/types";
 export const SYSTEM_PROPERTY_NAMES = [
   "messageId",
   "sequenceNumber",
+  "subject",
   "correlationId",
-  "sessionId",
   "contentType",
   "size",
   "deliveryCount",
   "timeToLive",
   "enqueuedTimeUtc",
+  "expiresAtUtc",
 ] as const;
 
 export const DEAD_LETTER_PROPERTY_NAMES = [
@@ -22,13 +23,14 @@ export const DEAD_LETTER_PROPERTY_NAMES = [
 export const propertyLabels: Record<string, string> = {
   messageId: "Message ID",
   sequenceNumber: "Sequence Number",
+  subject: "Subject",
   correlationId: "Correlation ID",
-  sessionId: "Session ID",
   contentType: "Content Type",
   size: "Size",
   deliveryCount: "Delivery Count",
   timeToLive: "Time To Live",
   enqueuedTimeUtc: "Enqueued Time (UTC)",
+  expiresAtUtc: "Expires At (UTC)",
   deadLetterReason: "Reason",
   deadLetterErrorDescription: "Error Description",
   deadLetterSource: "Source",

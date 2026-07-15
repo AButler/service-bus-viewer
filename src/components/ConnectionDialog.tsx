@@ -45,7 +45,11 @@ function fieldsFromConnection(connection: NamespaceConnection): typeof EMPTY {
     endpoint: connection.serviceBusEndpoint,
   };
   if (connection.auth.kind === "sas") {
-    return { ...base, keyName: connection.auth.keyName, key: connection.auth.key };
+    return {
+      ...base,
+      keyName: connection.auth.keyName,
+      key: connection.auth.key,
+    };
   }
   return {
     ...base,
@@ -172,7 +176,9 @@ export default function ConnectionDialog({
 
   return (
     <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
-      <DialogTitle>{isEdit ? "Edit namespace" : "Connect namespace"}</DialogTitle>
+      <DialogTitle>
+        {isEdit ? "Edit namespace" : "Connect namespace"}
+      </DialogTitle>
       <DialogContent>
         <Box sx={{ display: "flex", flexDirection: "column", gap: 2, pt: 1 }}>
           <TextField
