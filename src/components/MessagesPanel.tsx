@@ -15,10 +15,6 @@ interface MessagesPanelProps {
   error?: string | null;
   paginationModel: GridPaginationModel;
   selectedId: string | null;
-  onViewChange: (
-    event: React.MouseEvent<HTMLElement>,
-    value: MessageView | null,
-  ) => void;
   onRefresh: () => void;
   onPaginationModelChange: (model: GridPaginationModel) => void;
   onSelect: (message: ServiceBusReceivedMessage) => void;
@@ -34,7 +30,6 @@ export default function MessagesPanel({
   error,
   paginationModel,
   selectedId,
-  onViewChange,
   onRefresh,
   onPaginationModelChange,
   onSelect,
@@ -53,19 +48,17 @@ export default function MessagesPanel({
     >
       {entity ? (
         <>
-          <MessageToolbar
-            entity={entity}
-            view={view}
-            onViewChange={onViewChange}
-            onRefresh={onRefresh}
-          />
+          <MessageToolbar entity={entity} view={view} onRefresh={onRefresh} />
           <Box sx={{ flexGrow: 1, minHeight: 0 }}>
             <MessageGrid
               rows={rows}
               rowCount={rowCount}
               loading={loading}
               error={error}
-              deadLetterView={view === "deadletter"}
+              deadLetterView={
+                view === "deadletter" || view === "transferDeadletter"
+              }
+              scheduledView={view === "scheduled"}
               paginationModel={paginationModel}
               onPaginationModelChange={onPaginationModelChange}
               selectedId={selectedId}

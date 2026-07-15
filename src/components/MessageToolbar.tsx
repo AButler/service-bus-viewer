@@ -1,43 +1,50 @@
-import {
-  Box,
-  Chip,
-  IconButton,
-  ToggleButton,
-  ToggleButtonGroup,
-  Tooltip,
-  Typography,
-} from "@mui/material";
-import { alpha } from "@mui/material/styles";
-import InboxRoundedIcon from "@mui/icons-material/InboxRounded";
-import ReportProblemRoundedIcon from "@mui/icons-material/ReportProblemRounded";
+import { Box, Chip, IconButton, Tooltip, Typography } from "@mui/material";
 import RefreshRoundedIcon from "@mui/icons-material/RefreshRounded";
 import type { SelectedEntity } from "./NamespaceTree";
+import { VIEW_LABELS, type MessageView } from "../lib/selectionRoute";
 
-export type MessageView = "active" | "deadletter";
+export type { MessageView } from "../lib/selectionRoute";
 
 interface MessageToolbarProps {
   entity: SelectedEntity | null;
   view: MessageView;
-  onViewChange: (
-    event: React.MouseEvent<HTMLElement>,
-    value: MessageView | null,
-  ) => void;
   onRefresh: () => void;
 }
 
+// The count for the current view, or undefined when none is available (e.g.
+// deferred, or a topic's scheduled messages).
+function viewCount(
+  entity: SelectedEntity | null,
+  view: MessageView,
+): number | undefined {
+  if (!entity || entity.kind === "topic") return undefined;
+  const c = entity.countDetails;
+  switch (view) {
+    case "active":
+      return c.activeMessageCount;
+    case "deadletter":
+      return c.deadLetterMessageCount;
+    case "transferDeadletter":
+      return c.transferDeadLetterMessageCount;
+    case "scheduled":
+      return c.scheduledMessageCount;
+    case "deferred":
+      return undefined;
+  }
+}
+
 /**
- * Header above the message grid: the selected entity name/namespace and the
- * messages/dead-letter view toggle (with counts) share the top row, with a
- * toolbar of actions (refresh) beneath them.
+ * Header above the message grid: the selected entity name/namespace and a chip
+ * describing the current view (with its count), plus a toolbar of actions
+ * (refresh) attached to the grid.
  */
 export default function MessageToolbar({
   entity,
   view,
-  onViewChange,
   onRefresh,
 }: MessageToolbarProps) {
-  const activeCount = entity?.countDetails.activeMessageCount ?? 0;
-  const deadLetterCount = entity?.countDetails.deadLetterMessageCount ?? 0;
+  const count = viewCount(entity, view);
+  const isDeadLetter = view === "deadletter" || view === "transferDeadletter";
 
   return (
     <Box
@@ -59,9 +66,31 @@ export default function MessageToolbar({
         }}
       >
         <Box sx={{ minWidth: 0, flexGrow: 1 }}>
-          <Typography variant="subtitle1" noWrap>
-            {entity ? entity.label : "No entity selected"}
-          </Typography>
+          <Box
+            sx={{
+              display: "flex",
+              alignItems: "center",
+              gap: 1,
+              minWidth: 0,
+            }}
+          >
+            <Typography variant="subtitle1" noWrap>
+              {entity ? entity.label : "No entity selected"}
+            </Typography>
+            {entity && (
+              <Chip
+                size="small"
+                label={
+                  count !== undefined
+                    ? `${VIEW_LABELS[view]} \u00b7 ${count}`
+                    : VIEW_LABELS[view]
+                }
+                color={isDeadLetter ? "error" : "primary"}
+                variant="outlined"
+                sx={{ flexShrink: 0 }}
+              />
+            )}
+          </Box>
           {entity && (
             <Tooltip title={entity.namespaceHost}>
               <Typography
@@ -76,68 +105,6 @@ export default function MessageToolbar({
             </Tooltip>
           )}
         </Box>
-        <ToggleButtonGroup
-          size="small"
-          exclusive
-          value={view}
-          onChange={onViewChange}
-          disabled={entity === null}
-          aria-label="Message view"
-          sx={{ flexShrink: 0 }}
-        >
-          <ToggleButton
-            value="active"
-            aria-label="Active messages"
-            sx={{
-              whiteSpace: "nowrap",
-              "&.Mui-selected": {
-                color: "primary.main",
-                borderColor: "primary.main",
-                backgroundColor: (theme) =>
-                  alpha(theme.palette.primary.main, 0.12),
-                "&:hover": {
-                  backgroundColor: (theme) =>
-                    alpha(theme.palette.primary.main, 0.2),
-                },
-              },
-            }}
-          >
-            <InboxRoundedIcon fontSize="small" sx={{ mr: 0.5 }} />
-            Messages
-            <Chip
-              size="small"
-              label={activeCount}
-              color="primary"
-              sx={{ ml: 0.75 }}
-            />
-          </ToggleButton>
-          <ToggleButton
-            value="deadletter"
-            aria-label="Dead-letter messages"
-            sx={{
-              whiteSpace: "nowrap",
-              "&.Mui-selected": {
-                color: "error.main",
-                borderColor: "error.main",
-                backgroundColor: (theme) =>
-                  alpha(theme.palette.error.main, 0.12),
-                "&:hover": {
-                  backgroundColor: (theme) =>
-                    alpha(theme.palette.error.main, 0.2),
-                },
-              },
-            }}
-          >
-            <ReportProblemRoundedIcon fontSize="small" sx={{ mr: 0.5 }} />
-            Dead-letter
-            <Chip
-              size="small"
-              label={deadLetterCount}
-              color="error"
-              sx={{ ml: 0.75 }}
-            />
-          </ToggleButton>
-        </ToggleButtonGroup>
       </Box>
       <Box
         sx={{

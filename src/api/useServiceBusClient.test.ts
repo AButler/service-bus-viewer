@@ -45,7 +45,8 @@ describe("peekMessages (active)", () => {
     const page = await client.peekMessages({
       namespaceName: "contoso-prod",
       entityPath: "orders",
-      subQueue: "main",
+      entityType: "queue",
+      view: "active",
       skip: 0,
       top: 50,
     });
@@ -57,7 +58,8 @@ describe("peekMessages (active)", () => {
     const page = await client.peekMessages({
       namespaceName: "contoso-prod",
       entityPath: "orders",
-      subQueue: "main",
+      entityType: "queue",
+      view: "active",
       skip: 0,
       top: 50,
     });
@@ -73,7 +75,8 @@ describe("peekMessages (active)", () => {
     const page = await client.peekMessages({
       namespaceName: "contoso-prod",
       entityPath: "orders",
-      subQueue: "main",
+      entityType: "queue",
+      view: "active",
       skip: 0,
       top: 50,
     });
@@ -91,7 +94,8 @@ describe("peekMessages (active)", () => {
     const page = await client.peekMessages({
       namespaceName: "contoso-prod",
       entityPath: "orders",
-      subQueue: "main",
+      entityType: "queue",
+      view: "active",
       skip: 0,
       top: 50,
     });
@@ -102,17 +106,40 @@ describe("peekMessages (active)", () => {
   });
 });
 
-describe("peekMessages (dead-letter)", () => {
+describe("peekMessages (sub-queues)", () => {
   it("pages against the dead-letter count and flags each message", async () => {
     const page = await client.peekMessages({
       namespaceName: "contoso-prod",
       entityPath: "orders",
-      subQueue: "deadletter",
+      entityType: "queue",
+      view: "deadletter",
       skip: 0,
       top: 50,
     });
     expect(page.totalCount).toBe(3);
     expect(page.value).toHaveLength(3);
     expect(page.value.every((m) => Boolean(m.deadLetterReason))).toBe(true);
+  });
+
+  it("marks scheduled and deferred messages with the matching state", async () => {
+    const scheduled = await client.peekMessages({
+      namespaceName: "contoso-prod",
+      entityPath: "orders",
+      entityType: "queue",
+      view: "scheduled",
+      skip: 0,
+      top: 50,
+    });
+    expect(scheduled.value.every((m) => m.state === "scheduled")).toBe(true);
+
+    const deferred = await client.peekMessages({
+      namespaceName: "contoso-prod",
+      entityPath: "orders",
+      entityType: "queue",
+      view: "deferred",
+      skip: 0,
+      top: 50,
+    });
+    expect(deferred.value.every((m) => m.state === "deferred")).toBe(true);
   });
 });

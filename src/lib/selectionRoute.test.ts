@@ -59,6 +59,35 @@ describe("parseSelectionPath", () => {
     const result = parseSelectionPath("/contoso-prod/queues/orders/49000");
     expect(result).toMatchObject({ view: "active", sequenceNumber: null });
   });
+
+  it("encodes the sub-queue view in the item id", () => {
+    expect(
+      parseSelectionPath("/contoso-prod/queues/orders/transfer-dead-letters"),
+    ).toMatchObject({
+      itemId: "queue:contoso-prod/orders#transferDeadletter",
+      view: "transferDeadletter",
+    });
+    expect(
+      parseSelectionPath("/contoso-prod/queues/orders/deferred"),
+    ).toMatchObject({
+      itemId: "queue:contoso-prod/orders#deferred",
+      view: "deferred",
+    });
+  });
+
+  it("parses a topic-level scheduled selection", () => {
+    expect(
+      parseSelectionPath("/contoso-prod/topic-scheduled/order-events"),
+    ).toEqual({
+      itemId: "topic:contoso-prod/order-events#scheduled",
+      kind: "topic",
+      namespaceName: "contoso-prod",
+      entityPath: "order-events",
+      label: "order-events · scheduled",
+      view: "scheduled",
+      sequenceNumber: null,
+    });
+  });
 });
 
 describe("buildEntityPath / buildMessagePath", () => {
@@ -85,6 +114,17 @@ describe("buildEntityPath / buildMessagePath", () => {
   it("builds subscription paths", () => {
     expect(buildEntityPath(subscription, "active")).toBe(
       "/contoso-prod/topics/order-events/audit/messages",
+    );
+  });
+
+  it("builds a topic-scheduled path", () => {
+    const topic = {
+      kind: "topic" as const,
+      namespaceName: "contoso-prod",
+      entityPath: "order-events",
+    };
+    expect(buildEntityPath(topic, "scheduled")).toBe(
+      "/contoso-prod/topic-scheduled/order-events",
     );
   });
 
@@ -124,6 +164,27 @@ describe("selectionAncestorItemIds", () => {
       "namespace:contoso-prod",
       "group:contoso-prod:topics",
       "topic:contoso-prod/order-events",
+    ]);
+  });
+
+  it("expands the entity node for a sub-queue selection", () => {
+    const queueSub = parseSelectionPath(
+      "/contoso-prod/queues/orders/dead-letters",
+    )!;
+    expect(selectionAncestorItemIds(queueSub)).toEqual([
+      "namespace:contoso-prod",
+      "group:contoso-prod:queues",
+      "queue:contoso-prod/orders",
+    ]);
+
+    const subSub = parseSelectionPath(
+      "/contoso-prod/topics/order-events/audit/deferred",
+    )!;
+    expect(selectionAncestorItemIds(subSub)).toEqual([
+      "namespace:contoso-prod",
+      "group:contoso-prod:topics",
+      "topic:contoso-prod/order-events",
+      "subscription:contoso-prod/order-events/audit",
     ]);
   });
 });

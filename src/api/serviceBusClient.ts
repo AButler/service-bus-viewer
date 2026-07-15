@@ -89,6 +89,7 @@ function mapMessage(m: SdkMessage): ServiceBusReceivedMessage {
     partitionKey: m.partitionKey,
     enqueuedTimeUtc: m.enqueuedTimeUtc ?? new Date(),
     expiresAtUtc: m.expiresAtUtc,
+    scheduledEnqueueTimeUtc: m.scheduledEnqueueTimeUtc,
     timeToLive: m.timeToLive,
     deliveryCount: m.deliveryCount ?? 0,
     state: m.state,
@@ -285,28 +286,40 @@ export class ServiceBusClient implements ServiceBusApi {
   async peekMessages(
     params: PeekMessagesParams,
   ): Promise<PagedResult<ServiceBusReceivedMessage>> {
-    const { entityPath, subQueue, skip, top } = params;
+    const { entityPath, entityType, view, skip, top } = params;
+
+    // Topic-level scheduled messages have no data-plane receiver (topics can't
+    // be received from), so there is nothing to peek. TODO: surface via a
+    // management API if one becomes available.
+    if (entityType === "topic") {
+      return { value: [], totalCount: 0, nextSkip: null };
+    }
 
     // Total count comes from the entity's runtime properties.
     const admin = await this.adminClient();
-    let totalCount: number;
-    if (entityPath.includes("/")) {
-      const [topicName, subName] = entityPath.split("/");
-      const rt = await admin.getSubscriptionRuntimeProperties(
-        topicName,
-        subName,
-      );
-      totalCount =
-        subQueue === "deadletter"
-          ? rt.deadLetterMessageCount
-          : rt.activeMessageCount;
-    } else {
-      const rt = await admin.getQueueRuntimeProperties(entityPath);
-      totalCount =
-        subQueue === "deadletter"
-          ? rt.deadLetterMessageCount
-          : rt.activeMessageCount;
-    }
+    const rt =
+      entityType === "subscription"
+        ? await admin.getSubscriptionRuntimeProperties(
+            entityPath.split("/")[0],
+            entityPath.split("/")[1],
+          )
+        : await admin.getQueueRuntimeProperties(entityPath);
+    const counts = rt as {
+      activeMessageCount: number;
+      deadLetterMessageCount: number;
+      scheduledMessageCount?: number;
+      transferDeadLetterMessageCount?: number;
+    };
+    const totalCount =
+      view === "deadletter"
+        ? counts.deadLetterMessageCount
+        : view === "transferDeadletter"
+          ? (counts.transferDeadLetterMessageCount ?? 0)
+          : view === "scheduled"
+            ? (counts.scheduledMessageCount ?? 0)
+            : view === "deferred"
+              ? 0 // no runtime count for deferred; best-effort
+              : counts.activeMessageCount;
 
     const { ServiceBusClient: SdkClient } = await import("@azure/service-bus");
     let lastError: unknown;
@@ -315,7 +328,8 @@ export class ServiceBusClient implements ServiceBusApi {
         const value = await this.peekPage(
           SdkClient,
           entityPath,
-          subQueue,
+          entityType,
+          view,
           skip,
           top,
         );
@@ -336,10 +350,13 @@ export class ServiceBusClient implements ServiceBusApi {
   }
 
   // One peek attempt: open a client + receiver, peek a page, and clean up.
+  // Dead-letter/transfer-dead-letter read from a sub-queue; scheduled/deferred/
+  // active share the main queue and are filtered by message state.
   private async peekPage(
     SdkClient: typeof import("@azure/service-bus").ServiceBusClient,
     entityPath: string,
-    subQueue: PeekMessagesParams["subQueue"],
+    entityType: PeekMessagesParams["entityType"],
+    view: PeekMessagesParams["view"],
     skip: number,
     top: number,
   ): Promise<ServiceBusReceivedMessage[]> {
@@ -349,16 +366,19 @@ export class ServiceBusClient implements ServiceBusApi {
         : new SdkClient(this.host(), this.getCredential(), PEEK_SDK_OPTIONS);
     try {
       const options =
-        subQueue === "deadletter"
+        view === "deadletter"
           ? { subQueueType: "deadLetter" as const }
-          : {};
-      const receiver = entityPath.includes("/")
-        ? client.createReceiver(
-            entityPath.split("/")[0],
-            entityPath.split("/")[1],
-            options,
-          )
-        : client.createReceiver(entityPath, options);
+          : view === "transferDeadletter"
+            ? { subQueueType: "transferDeadLetter" as const }
+            : {};
+      const receiver =
+        entityType === "subscription"
+          ? client.createReceiver(
+              entityPath.split("/")[0],
+              entityPath.split("/")[1],
+              options,
+            )
+          : client.createReceiver(entityPath, options);
 
       // Peek is cursor-based; peek `skip + top` from the start and slice the
       // page. Bounded so a stalled connection surfaces as an error.
@@ -368,7 +388,21 @@ export class ServiceBusClient implements ServiceBusApi {
         PEEK_TIMEOUT_MESSAGE,
       );
       await receiver.close();
-      return peeked.slice(skip, skip + top).map(mapMessage);
+
+      let mapped = peeked.map(mapMessage);
+      // Scheduled/deferred/active come from the same peek; filter by state.
+      const stateFilter =
+        view === "scheduled"
+          ? "scheduled"
+          : view === "deferred"
+            ? "deferred"
+            : view === "active"
+              ? "active"
+              : null;
+      if (stateFilter) {
+        mapped = mapped.filter((m) => m.state === stateFilter);
+      }
+      return mapped.slice(skip, skip + top);
     } finally {
       await client.close();
     }

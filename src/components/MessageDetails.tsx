@@ -43,13 +43,15 @@ function renderPropertyRow(message: ServiceBusReceivedMessage, name: string) {
     : undefined;
   const hasDisplay = formatted !== undefined && formatted !== null;
   const display = hasDisplay ? formatted : "\u2014";
+  // Only plain-text values can be copied; custom controls opt out.
+  const copyValue = typeof formatted === "string" ? formatted : undefined;
   return (
     <PropertyRow
       key={name}
       label={propertyLabels[name] ?? name}
       rawName={name}
       value={display}
-      copyValue={hasDisplay ? display : undefined}
+      copyValue={copyValue}
     />
   );
 }
@@ -195,7 +197,8 @@ export default function MessageDetails({ message }: MessageDetailsProps) {
                 p: 1.5,
                 bgcolor: "action.hover",
                 borderRadius: 2,
-                overflowX: "auto",
+                maxHeight: 360,
+                overflow: "auto",
               }}
             >
               {(() => {
@@ -229,19 +232,26 @@ export default function MessageDetails({ message }: MessageDetailsProps) {
             expanded={isExpanded("Application Properties")}
             onToggle={() => toggleSection("Application Properties")}
           >
-            <List dense disablePadding>
-              {Object.entries(message.applicationProperties ?? {}).map(
-                ([key, value]) => (
-                  <PropertyRow
-                    key={key}
-                    label={key}
-                    value={String(value)}
-                    copyValue={String(value)}
-                    rawName={key}
-                  />
-                ),
-              )}
-            </List>
+            {message.applicationProperties &&
+            Object.keys(message.applicationProperties).length > 0 ? (
+              <List dense disablePadding>
+                {Object.entries(message.applicationProperties).map(
+                  ([key, value]) => (
+                    <PropertyRow
+                      key={key}
+                      label={key}
+                      value={String(value)}
+                      copyValue={String(value)}
+                      rawName={key}
+                    />
+                  ),
+                )}
+              </List>
+            ) : (
+              <Typography variant="body2" color="text.disabled">
+                (none)
+              </Typography>
+            )}
           </Section>
 
           <Section

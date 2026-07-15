@@ -43,7 +43,7 @@ function withLogging(client: ServiceBusApi, namespace: string): ServiceBusApi {
     peekMessages: (params) =>
       run(
         `peek "${params.entityPath}"` +
-          (params.subQueue === "deadletter" ? " (dead-letter)" : "") +
+          (params.view !== "active" ? ` (${params.view})` : "") +
           ` [skip ${params.skip}, top ${params.top}]`,
         () => client.peekMessages(params),
       ),

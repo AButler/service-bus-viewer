@@ -1,8 +1,9 @@
+import { Box } from "@mui/material";
 import type { PropertyFormatter } from "./types";
 
 /**
- * Render a byte count. "full" adds the raw byte count with the largest unit in
- * parentheses; "simple" renders only the largest-unit form.
+ * Render a byte count. "full" shows the human-readable size with the raw byte
+ * count in a muted parenthetical; "simple" renders only the human-readable form.
  */
 export const formatBytes: PropertyFormatter = (value, detail) => {
   const bytes = value as number;
@@ -19,5 +20,15 @@ export const formatBytes: PropertyFormatter = (value, detail) => {
   }
   const rounded = scaled.toFixed(2).replace(/\.?0+$/, "");
   const human = `${rounded} ${units[unitIndex]}`;
-  return detail === "simple" ? human : `${withSeparators} bytes (${human})`;
+  if (detail === "simple") {
+    return human;
+  }
+  return (
+    <>
+      {human}{" "}
+      <Box component="span" sx={{ color: "text.secondary" }}>
+        ({withSeparators} bytes)
+      </Box>
+    </>
+  );
 };

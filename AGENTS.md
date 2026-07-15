@@ -73,7 +73,7 @@ src/
     NamespaceTree.tsx      # Lazy-loaded tree (SimpleTreeView) + selection resolve
     namespaceTree/         # Tree building blocks (see Tree conventions)
     MessagesPanel.tsx      # Middle panel wrapper (toolbar + grid, or empty state)
-    MessageToolbar.tsx     # Entity header, refresh, count chips, view toggle
+    MessageToolbar.tsx     # Entity header + current-view chip; refresh toolbar
     MessageGrid.tsx        # DataGrid (server pagination, no sorting)
     MessageDetails.tsx     # Right panel: collapsible sections + body
     ConnectionDialog.tsx   # Add-a-connection form (SAS now, Entra sign-in)
@@ -191,7 +191,10 @@ also needs the Node polyfills from `vite-plugin-node-polyfills` +
   `*.servicebus.windows.net` — sovereign clouds, private endpoints) **without**
   recursing through Tauri's own fetch-based IPC (which would exhaust memory).
   This is transparent to the clients. Peek uses `ServiceBusClient` receivers
-  (AMQP/WebSocket), with `subQueueType: "deadLetter"` for dead-letters.
+  (AMQP/WebSocket), with `subQueueType: "deadLetter"`/`"transferDeadLetter"` for
+  the dead-letter sub-queues; `scheduled`/`deferred`/`active` share the main
+  queue and are filtered by message `state`. Topic-level scheduled messages have
+  no data-plane receiver, so the real client returns empty for them (TODO).
 - **Browser can't reach Service Bus** (CORS), so the browser dev server always
   uses the mock. Real data only works in the Tauri build; the `http:default`
   capability allows `https://**` / `http://**`.
@@ -210,10 +213,16 @@ the path as the source of truth. `src/lib/selectionRoute.ts` owns the mapping:
 ```
 /<namespace>/queues/<queue>/<view>[/<sequenceNumber>]
 /<namespace>/topics/<topic>/<subscription>/<view>[/<sequenceNumber>]
+/<namespace>/topic-scheduled/<topic>[/<sequenceNumber>]
 ```
 
-- `<view>` is `messages` (active) or `dead-letters` — so the message view is
-  restored on reload.
+- `<view>` is one of `messages` (active), `dead-letters`,
+  `transfer-dead-letters`, `scheduled`, or `deferred` — restored on reload. The
+  `topic-scheduled` route targets a topic's own scheduled messages (a topic has
+  no subscription/receiver). These map to the `MessageView` union in
+  `api/types.ts`.
+- Sub-queue tree nodes encode the view in the item id as `#<view>` (e.g.
+  `queue:<ns>/orders#deadletter`); the plain entity id is the main/active view.
 - **Messages are identified by `sequenceNumber`, not `messageId`.** In Service
   Bus `messageId` is optional/app-defined and not guaranteed unique;
   `sequenceNumber` is broker-assigned and unique per entity (and per dead-letter
@@ -236,10 +245,18 @@ the path as the source of truth. `src/lib/selectionRoute.ts` owns the mapping:
 - **Lazy loading:** a namespace's queues/topics load when expanded; a topic's
   subscriptions load when expanded. Show a spinner child (`LoadingItem`) while
   `isPending`.
+- **Queues/subscriptions are branches** whose children are `SubQueueItem`
+  leaves (one per `MessageView`): queues expose Dead-letter, Transfer
+  dead-letter, Scheduled, Deferred; subscriptions expose Dead-letter, Deferred;
+  topics expose their subscriptions plus a topic-level Scheduled leaf. Clicking
+  the entity selects its main (active) messages; clicking a sub-node selects
+  that view.
 - **Item id scheme** encodes kind + path: `namespace:<ns>`,
   `group:<ns>:queues|topics`, `queue:<ns>/<name>`, `topic:<ns>/<name>`,
-  `subscription:<ns>/<topic>/<name>`. Loading/placeholder nodes use
-  `::loading` / `::empty` / `::placeholder` suffixes.
+  `subscription:<ns>/<topic>/<name>`. Sub-queue leaves append `#<view>` (e.g.
+  `queue:<ns>/<name>#deadletter`, `topic:<ns>/<name>#scheduled`).
+  Loading/placeholder nodes use `::loading` / `::empty` / `::placeholder`
+  suffixes.
 - **Selection** (`useResolveSelection`) resolves the full entity (incl.
   `countDetails`) from the React Query cache via `queryClient.getQueryData(...)`.
 - Count chips: **primary** = active messages, **error** = dead-letter count. The
@@ -263,8 +280,10 @@ the path as the source of truth. `src/lib/selectionRoute.ts` owns the mapping:
 ## Property value formatters (`propertyFormatters/`)
 
 Mirrors the body renderer registry. `getPropertyFormatter(name)` returns a
-`PropertyFormatter` `(value, detail) => string`, defaulting to `String(value)`.
-`detail` is `"simple"` (used by the grid) or `"full"` (used by details):
+`PropertyFormatter` `(value, detail) => ReactNode` — a string renders (and is
+copyable) as text, any other node is a custom control, and `undefined` renders
+the “—” fallback; the default formatter is `String(value)`.
+`detail` is `"simple"` (used by the grid via `renderCell`) or `"full"` (details):
 
 - `bytesFormatter` — `"1,024 bytes (1 KB)"` (full) vs `"1 KB"` (simple).
 - `durationFormatter` — `"1,209,600 seconds (14 days)"` (detail-agnostic today).
@@ -280,9 +299,9 @@ registry so they stay consistent.
   `getRowId` on `sequenceNumber`, and formats Size/Enqueued via
   `getPropertyFormatter(..., "simple")`. Default page size is 50.
 - `MessageToolbar` shows the entity name and the namespace short-name (host as a
-  tooltip), a refresh button, active/dead-letter count chips (collapsed on narrow
-  containers via container queries), and the messages/dead-letter toggle. The
-  toggle and chips use primary/error colors consistently.
+  tooltip), a chip describing the current view and its count (primary, or error
+  for dead-letter views), and a refresh button in a toolbar strip attached to
+  the grid. The message view is chosen from the tree (no in-grid toggle).
 
 ## Body renderer registry (extensible pattern)
 

@@ -54,21 +54,13 @@ describe("App routing", () => {
 
     it("restores a queue selection from a deep link", async () => {
       renderApp("/contoso-prod/queues/orders/messages");
-      const activeToggle = await screen.findByRole("button", {
-        name: "Active messages",
-      });
-      expect(activeToggle).toHaveAttribute("aria-pressed", "true");
       expect(
-        screen.getByRole("button", { name: "Refresh messages" }),
+        await screen.findByRole("button", { name: "Refresh messages" }),
       ).toBeInTheDocument();
     });
 
     it("restores the dead-letter view from a deep link", async () => {
       renderApp("/contoso-prod/queues/orders/dead-letters");
-      const deadLetterToggle = await screen.findByRole("button", {
-        name: "Dead-letter messages",
-      });
-      expect(deadLetterToggle).toHaveAttribute("aria-pressed", "true");
       expect(await screen.findByText("Dead Letter Reason")).toBeInTheDocument();
     });
 

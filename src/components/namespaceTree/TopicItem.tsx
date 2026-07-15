@@ -1,5 +1,6 @@
 import { TreeItem } from "@mui/x-tree-view/TreeItem";
 import TopicRoundedIcon from "@mui/icons-material/TopicRounded";
+import ScheduleRoundedIcon from "@mui/icons-material/ScheduleRounded";
 import { useSubscriptions } from "../../hooks/useServiceBus";
 import type { SBTopic } from "../../api/types";
 import {
@@ -9,6 +10,7 @@ import {
   Placeholder,
 } from "./treeItems";
 import SubscriptionItem from "./SubscriptionItem";
+import SubQueueItem from "./SubQueueItem";
 
 /** Tree branch for a topic; lazily loads its subscriptions when expanded. */
 export default function TopicItem({
@@ -38,17 +40,27 @@ export default function TopicItem({
         <Placeholder parentId={itemId} />
       ) : subscriptions.isPending ? (
         <LoadingItem parentId={itemId} />
-      ) : subscriptions.data && subscriptions.data.length > 0 ? (
-        subscriptions.data.map((s) => (
-          <SubscriptionItem
-            key={s.id}
-            namespaceName={namespaceName}
-            topicName={topic.name}
-            subscription={s}
-          />
-        ))
       ) : (
-        <MessageItem parentId={itemId} text="No subscriptions" />
+        <>
+          {subscriptions.data && subscriptions.data.length > 0 ? (
+            subscriptions.data.map((s) => (
+              <SubscriptionItem
+                key={s.id}
+                namespaceName={namespaceName}
+                topicName={topic.name}
+                subscription={s}
+              />
+            ))
+          ) : (
+            <MessageItem parentId={itemId} text="No subscriptions" />
+          )}
+          <SubQueueItem
+            baseItemId={itemId}
+            view="scheduled"
+            label="Scheduled"
+            icon={<ScheduleRoundedIcon fontSize="small" color="action" />}
+          />
+        </>
       )}
     </TreeItem>
   );

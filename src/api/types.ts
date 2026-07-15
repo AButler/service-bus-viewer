@@ -93,6 +93,7 @@ export interface ServiceBusReceivedMessage {
   partitionKey?: string;
   enqueuedTimeUtc: Date;
   expiresAtUtc?: Date;
+  scheduledEnqueueTimeUtc?: Date;
   timeToLive?: number;
   deliveryCount: number;
   state: "active" | "deferred" | "scheduled";
@@ -102,13 +103,26 @@ export interface ServiceBusReceivedMessage {
   deadLetterSource?: string;
 }
 
-export type SubQueue = "main" | "deadletter";
+/**
+ * A message view / sub-queue that can be peeked for an entity. `active` is the
+ * main queue; the rest map to sub-queues or filtered states.
+ */
+export type MessageView =
+  | "active"
+  | "deadletter"
+  | "transferDeadletter"
+  | "scheduled"
+  | "deferred";
+
+/** The kind of entity a peek targets. */
+export type PeekEntityType = "queue" | "subscription" | "topic";
 
 /** Parameters for peeking a page of messages from an entity. */
 export interface PeekMessagesParams {
   namespaceName: string;
   entityPath: string;
-  subQueue: SubQueue;
+  entityType: PeekEntityType;
+  view: MessageView;
   skip: number;
   top: number;
 }

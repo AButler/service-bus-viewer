@@ -10,6 +10,7 @@ export const SYSTEM_PROPERTY_NAMES = [
   "deliveryCount",
   "timeToLive",
   "enqueuedTimeUtc",
+  "scheduledEnqueueTimeUtc",
   "expiresAtUtc",
 ] as const;
 
@@ -30,6 +31,7 @@ export const propertyLabels: Record<string, string> = {
   deliveryCount: "Delivery Count",
   timeToLive: "Time To Live",
   enqueuedTimeUtc: "Enqueued Time (UTC)",
+  scheduledEnqueueTimeUtc: "Scheduled Enqueue Time (UTC)",
   expiresAtUtc: "Expires At (UTC)",
   deadLetterReason: "Reason",
   deadLetterErrorDescription: "Error Description",

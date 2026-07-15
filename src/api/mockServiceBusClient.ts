@@ -7,6 +7,7 @@
 
 import type {
   MessageCountDetails,
+  MessageView,
   PagedResult,
   PeekMessagesParams,
   SBQueue,
@@ -95,13 +96,23 @@ function namespaceResourceId(ns: string): string {
   );
 }
 
-function countDetails(active: number, dead: number): MessageCountDetails {
+// Deterministic extra count for a sub-queue view of an entity (keyed by the
+// entity path so list counts and peek totals agree).
+function extraCount(key: string, view: string, mod: number): number {
+  return Math.abs(hashString(`${key}#${view}`)) % mod;
+}
+
+function countDetails(
+  key: string,
+  active: number,
+  dead: number,
+): MessageCountDetails {
   return {
     activeMessageCount: active,
     deadLetterMessageCount: dead,
-    scheduledMessageCount: 0,
+    scheduledMessageCount: extraCount(key, "scheduled", 9),
     transferMessageCount: 0,
-    transferDeadLetterMessageCount: 0,
+    transferDeadLetterMessageCount: extraCount(key, "transferDeadletter", 4),
   };
 }
 
@@ -200,9 +211,16 @@ const bodies = [
 function buildMessage(
   seed: number,
   index: number,
-  deadLetter: boolean,
+  view: MessageView,
 ): ServiceBusReceivedMessage {
   const n = seed * 1000 + index;
+  const deadLetter = view === "deadletter" || view === "transferDeadletter";
+  const state: ServiceBusReceivedMessage["state"] =
+    view === "scheduled"
+      ? "scheduled"
+      : view === "deferred"
+        ? "deferred"
+        : "active";
   // Keep enqueuedTimeUtc always in the past while making it increase with the
   // sequence number: a larger n means a smaller offset back from "now".
   const pastWindow = 90 * 24 * 60 * 60 * 1000; // 90 days in ms
@@ -229,9 +247,14 @@ function buildMessage(
     sessionId: index % 3 === 0 ? `session-${(seed + index) % 5}` : undefined,
     enqueuedTimeUtc: enqueued,
     expiresAtUtc: new Date(enqueued.getTime() + timeToLive),
+    // Scheduled messages are enqueued at a future time; stagger by index.
+    scheduledEnqueueTimeUtc:
+      state === "scheduled"
+        ? new Date(Date.now() + (index + 1) * 60 * 60 * 1000)
+        : undefined,
     timeToLive,
     deliveryCount: deadLetter ? 10 : index % 4,
-    state: "active",
+    state,
     applicationProperties,
     ...(deadLetter
       ? {
@@ -245,23 +268,53 @@ function buildMessage(
   };
 }
 
+// Total message count for a view of an entity, mirroring the list counts so
+// tree chips and grid totals agree.
+function mockTotalCount(
+  namespaceName: string,
+  entityPath: string,
+  entityType: PeekMessagesParams["entityType"],
+  view: MessageView,
+): number {
+  if (entityType === "topic") {
+    return view === "scheduled" ? extraCount(entityPath, "scheduled", 9) : 0;
+  }
+  const entity = resolveEntity(namespaceName, entityPath);
+  if (!entity) return 0;
+  switch (view) {
+    case "active":
+      return entity.active;
+    case "deadletter":
+      return entity.dead;
+    case "transferDeadletter":
+      return extraCount(entityPath, "transferDeadletter", 4);
+    case "scheduled":
+      return extraCount(entityPath, "scheduled", 9);
+    case "deferred":
+      return extraCount(entityPath, "deferred", 6);
+  }
+}
+
 async function mockPeekMessages(
   namespaceName: string,
   params: PeekMessagesParams,
 ): Promise<PagedResult<ServiceBusReceivedMessage>> {
-  const { entityPath, subQueue, skip, top } = params;
-  await delay(latency(`peek:${namespaceName}:${entityPath}:${subQueue}`));
+  const { entityPath, entityType, view, skip, top } = params;
+  await delay(latency(`peek:${namespaceName}:${entityPath}:${view}`));
 
-  const entity = resolveEntity(namespaceName, entityPath);
-  const isDeadLetter = subQueue === "deadletter";
-  const totalCount = entity ? (isDeadLetter ? entity.dead : entity.active) : 0;
+  const totalCount = mockTotalCount(
+    namespaceName,
+    entityPath,
+    entityType,
+    view,
+  );
 
   const seed =
-    Math.abs(hashString(`${namespaceName}/${entityPath}/${subQueue}`)) % 20;
+    Math.abs(hashString(`${namespaceName}/${entityPath}/${view}`)) % 20;
   const end = Math.min(skip + top, totalCount);
   const value: ServiceBusReceivedMessage[] = [];
   for (let i = skip; i < end; i++) {
-    value.push(buildMessage(seed + 1, i, isDeadLetter));
+    value.push(buildMessage(seed + 1, i, view));
   }
 
   return {
@@ -279,7 +332,7 @@ async function mockListQueues(namespaceName: string): Promise<SBQueue[]> {
     name: q.name,
     type: "Microsoft.ServiceBus/Namespaces/Queues",
     properties: {
-      countDetails: countDetails(q.active, q.dead),
+      countDetails: countDetails(q.name, q.active, q.dead),
       messageCount: q.active + q.dead,
       status: "Active",
       maxDeliveryCount: 10,
@@ -319,7 +372,7 @@ async function mockListSubscriptions(
     name: s.name,
     type: "Microsoft.ServiceBus/Namespaces/Topics/Subscriptions",
     properties: {
-      countDetails: countDetails(s.active, s.dead),
+      countDetails: countDetails(`${topicName}/${s.name}`, s.active, s.dead),
       messageCount: s.active + s.dead,
       status: "Active",
       maxDeliveryCount: 10,

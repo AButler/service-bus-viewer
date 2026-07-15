@@ -5,7 +5,6 @@ import type { GridPaginationModel } from "@mui/x-data-grid";
 import { useIsFetching, useQueryClient } from "@tanstack/react-query";
 import { useLocation, useNavigate } from "react-router-dom";
 import type { SelectedEntity } from "./components/NamespaceTree";
-import type { MessageView } from "./components/MessageToolbar";
 import MessageDetails from "./components/MessageDetails";
 import ResizeHandle from "./components/ResizeHandle";
 import TopBar from "./components/TopBar";
@@ -18,6 +17,7 @@ import {
   useNamespaces,
   useQueues,
   useSubscriptions,
+  useTopics,
 } from "./hooks/useServiceBus";
 import { useConnections, useConnectionMutations } from "./hooks/useConnections";
 import type {
@@ -26,6 +26,7 @@ import type {
 } from "./lib/connectionStore";
 import type {
   MessageCountDetails,
+  MessageView,
   ServiceBusReceivedMessage,
 } from "./api/types";
 import {
@@ -109,6 +110,10 @@ function App() {
     subscriptionTopic,
     selection?.kind === "subscription",
   );
+  const topicsQuery = useTopics(
+    selection?.namespaceName ?? "",
+    selection?.kind === "topic",
+  );
 
   const selectedEntity = useMemo<SelectedEntity | null>(() => {
     if (!selection) return null;
@@ -125,13 +130,14 @@ function App() {
         (q) => q.name === selection.entityPath,
       );
       if (queue) countDetails = queue.properties.countDetails;
-    } else {
+    } else if (selection.kind === "subscription") {
       const subName = selection.entityPath.split("/")[1];
       const subscription = subscriptionsQuery.data?.find(
         (s) => s.name === subName,
       );
       if (subscription) countDetails = subscription.properties.countDetails;
     }
+    // Topics have no count details.
 
     return {
       itemId: selection.itemId,
@@ -140,6 +146,7 @@ function App() {
       namespaceHost,
       entityPath: selection.entityPath,
       label: selection.label,
+      view: selection.view,
       countDetails,
     };
   }, [
@@ -154,7 +161,8 @@ function App() {
       ? {
           namespaceName: selectedEntity.namespaceName,
           entityPath: selectedEntity.entityPath,
-          subQueue: messageView === "deadletter" ? "deadletter" : "main",
+          entityType: selectedEntity.kind,
+          view: messageView,
           skip: paginationModel.page * paginationModel.pageSize,
           top: paginationModel.pageSize,
         }
@@ -205,13 +213,19 @@ function App() {
     }
 
     const entityQuery =
-      selection.kind === "queue" ? queuesQuery : subscriptionsQuery;
+      selection.kind === "queue"
+        ? queuesQuery
+        : selection.kind === "subscription"
+          ? subscriptionsQuery
+          : topicsQuery;
     const entityFound =
       selection.kind === "queue"
         ? queuesQuery.data?.some((q) => q.name === selection.entityPath)
-        : subscriptionsQuery.data?.some(
-            (s) => s.name === selection.entityPath.split("/")[1],
-          );
+        : selection.kind === "subscription"
+          ? subscriptionsQuery.data?.some(
+              (s) => s.name === selection.entityPath.split("/")[1],
+            )
+          : topicsQuery.data?.some((t) => t.name === selection.entityPath);
 
     if (entityQuery.isError || (entityQuery.isSuccess && !entityFound)) {
       navigate("/", { replace: true });
@@ -236,6 +250,9 @@ function App() {
     subscriptionsQuery.isSuccess,
     subscriptionsQuery.isError,
     subscriptionsQuery.data,
+    topicsQuery.isSuccess,
+    topicsQuery.isError,
+    topicsQuery.data,
     messagesQuery.isSuccess,
     rows,
     navigate,
@@ -300,7 +317,7 @@ function App() {
   };
 
   const handleEntitySelect = (entity: SelectedEntity) => {
-    navigate(buildEntityPath(entity, "active"));
+    navigate(buildEntityPath(entity, entity.view));
   };
 
   const handleMessageSelect = (message: ServiceBusReceivedMessage) => {
@@ -312,15 +329,6 @@ function App() {
           String(message.sequenceNumber),
         ),
       );
-    }
-  };
-
-  const handleViewChange = (
-    _event: React.MouseEvent<HTMLElement>,
-    value: MessageView | null,
-  ) => {
-    if (value !== null && selectedEntity) {
-      navigate(buildEntityPath(selectedEntity, value));
     }
   };
 
@@ -386,7 +394,6 @@ function App() {
           }
           paginationModel={paginationModel}
           selectedId={selection?.sequenceNumber ?? null}
-          onViewChange={handleViewChange}
           onRefresh={handleRefreshMessages}
           onPaginationModelChange={handlePaginationChange}
           onSelect={handleMessageSelect}
