@@ -20,7 +20,10 @@ import {
   useSubscriptions,
 } from "./hooks/useServiceBus";
 import { useConnections, useConnectionMutations } from "./hooks/useConnections";
-import type { NamespaceConnectionDraft } from "./lib/connectionStore";
+import type {
+  NamespaceConnection,
+  NamespaceConnectionDraft,
+} from "./lib/connectionStore";
 import type {
   MessageCountDetails,
   ServiceBusReceivedMessage,
@@ -70,13 +73,16 @@ function App() {
   const [rightWidth, setRightWidth] = useState(DEFAULT_RIGHT_WIDTH);
   const [expandedItems, setExpandedItems] = useState<string[]>([]);
   const [connectOpen, setConnectOpen] = useState(false);
+  const [editConnection, setEditConnection] =
+    useState<NamespaceConnection | null>(null);
   const [logsOpen, setLogsOpen] = useState(false);
   const [logsHeight, setLogsHeight] = useState(DEFAULT_LOGS_HEIGHT);
 
   const queryClient = useQueryClient();
   const namespacesQuery = useNamespaces();
   const connectionsQuery = useConnections();
-  const { addConnection, removeConnection } = useConnectionMutations();
+  const { addConnection, updateConnection, removeConnection } =
+    useConnectionMutations();
   const isTreeFetching = useIsFetching({
     predicate: (query) =>
       ["namespaces", "queues", "topics", "subscriptions"].includes(
@@ -248,6 +254,26 @@ function App() {
     addConnection.mutate(draft, { onSuccess: () => setConnectOpen(false) });
   };
 
+  const closeConnectionDialog = () => {
+    setConnectOpen(false);
+    setEditConnection(null);
+  };
+
+  const handleEdit = (namespaceName: string) => {
+    const connection = connectionsQuery.data?.find(
+      (c) => c.friendlyName === namespaceName,
+    );
+    if (!connection) return;
+    setEditConnection(connection);
+    setConnectOpen(true);
+  };
+
+  const handleSave = (connection: NamespaceConnection) => {
+    updateConnection.mutate(connection, {
+      onSuccess: closeConnectionDialog,
+    });
+  };
+
   const handleDisconnect = (namespaceName: string) => {
     const connection = connectionsQuery.data?.find(
       (c) => c.friendlyName === namespaceName,
@@ -314,8 +340,12 @@ function App() {
           showConnect={hasNoNamespaces}
           onRefresh={handleRefreshNamespaces}
           onCollapseAll={() => setExpandedItems([])}
-          onConnect={() => setConnectOpen(true)}
+          onConnect={() => {
+            setEditConnection(null);
+            setConnectOpen(true);
+          }}
           onDisconnect={handleDisconnect}
+          onEdit={handleEdit}
         />
 
         <ResizeHandle
@@ -407,9 +437,11 @@ function App() {
 
       <ConnectionDialog
         open={connectOpen}
-        onClose={() => setConnectOpen(false)}
+        onClose={closeConnectionDialog}
         onAdd={handleConnect}
-        busy={addConnection.isPending}
+        onSave={handleSave}
+        connection={editConnection}
+        busy={addConnection.isPending || updateConnection.isPending}
       />
     </Box>
   );

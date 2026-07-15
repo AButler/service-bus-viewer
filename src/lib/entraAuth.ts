@@ -16,9 +16,13 @@ import type { TokenCredential } from "@azure/core-auth";
 // access tokens without re-prompting.
 const SCOPE = "https://servicebus.azure.net/user_impersonation offline_access";
 
+// Public client (application) ID of this app's Entra registration. The same
+// registration is used for every connection, so it lives here rather than in
+// each stored connection.
+export const ENTRA_CLIENT_ID = "96085603-f4ca-413e-808b-8443396ef826";
+
 export interface EntraAuthConfig {
   tenantId: string;
-  clientId: string;
 }
 
 export interface EntraTokens {
@@ -93,7 +97,7 @@ export function refreshEntraToken(
   auth: EntraAuthConfig & { refreshToken: string },
 ): Promise<EntraTokens> {
   const body = new URLSearchParams({
-    client_id: auth.clientId,
+    client_id: ENTRA_CLIENT_ID,
     grant_type: "refresh_token",
     refresh_token: auth.refreshToken,
     scope: SCOPE,
@@ -128,7 +132,7 @@ export async function signInWithEntra(
 
   try {
     const authUrl = new URL(`${authorityBase(auth.tenantId)}/authorize`);
-    authUrl.searchParams.set("client_id", auth.clientId);
+    authUrl.searchParams.set("client_id", ENTRA_CLIENT_ID);
     authUrl.searchParams.set("response_type", "code");
     authUrl.searchParams.set("redirect_uri", redirectUri);
     authUrl.searchParams.set("response_mode", "query");
@@ -177,7 +181,7 @@ export async function signInWithEntra(
     });
 
     const body = new URLSearchParams({
-      client_id: auth.clientId,
+      client_id: ENTRA_CLIENT_ID,
       grant_type: "authorization_code",
       code,
       redirect_uri: redirectUri,

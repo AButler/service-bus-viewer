@@ -28,13 +28,12 @@ describe("browser connection store", () => {
     await store.add({
       friendlyName: "corp",
       serviceBusEndpoint: "sb://corp.servicebus.windows.net/",
-      auth: { kind: "entra", tenantId: "t-1", clientId: "c-1" },
+      auth: { kind: "entra", tenantId: "t-1" },
     });
     const [loaded] = await store.list();
     expect(loaded.auth).toEqual({
       kind: "entra",
       tenantId: "t-1",
-      clientId: "c-1",
       refreshToken: undefined,
     });
   });

@@ -10,6 +10,7 @@ import {
   Typography,
 } from "@mui/material";
 import LinkOffRoundedIcon from "@mui/icons-material/LinkOffRounded";
+import EditRoundedIcon from "@mui/icons-material/EditRounded";
 import { useNamespaces } from "../hooks/useServiceBus";
 import NamespaceItem from "./namespaceTree/NamespaceItem";
 import { useResolveSelection } from "./namespaceTree/useResolveSelection";
@@ -23,6 +24,7 @@ interface NamespaceTreeProps {
   expandedItems: string[];
   setExpandedItems: React.Dispatch<React.SetStateAction<string[]>>;
   onDisconnect: (namespaceName: string) => void;
+  onEdit: (namespaceName: string) => void;
 }
 
 export default function NamespaceTree({
@@ -31,6 +33,7 @@ export default function NamespaceTree({
   expandedItems,
   setExpandedItems,
   onDisconnect,
+  onEdit,
 }: NamespaceTreeProps) {
   const namespaces = useNamespaces();
   const resolveSelection = useResolveSelection();
@@ -67,6 +70,11 @@ export default function NamespaceTree({
 
   const handleDisconnect = () => {
     if (namespaceMenu) onDisconnect(namespaceMenu.namespaceName);
+    setNamespaceMenu(null);
+  };
+
+  const handleEdit = () => {
+    if (namespaceMenu) onEdit(namespaceMenu.namespaceName);
     setNamespaceMenu(null);
   };
 
@@ -113,6 +121,12 @@ export default function NamespaceTree({
         anchorOrigin={{ vertical: "bottom", horizontal: "right" }}
         transformOrigin={{ vertical: "top", horizontal: "right" }}
       >
+        <MenuItem onClick={handleEdit}>
+          <ListItemIcon>
+            <EditRoundedIcon fontSize="small" />
+          </ListItemIcon>
+          <ListItemText>Edit namespace</ListItemText>
+        </MenuItem>
         <MenuItem onClick={handleDisconnect}>
           <ListItemIcon>
             <LinkOffRoundedIcon fontSize="small" />

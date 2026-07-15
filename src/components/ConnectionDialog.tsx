@@ -11,7 +11,10 @@ import {
   ToggleButtonGroup,
   Typography,
 } from "@mui/material";
-import type { NamespaceConnectionDraft } from "../lib/connectionStore";
+import type {
+  NamespaceConnection,
+  NamespaceConnectionDraft,
+} from "../lib/connectionStore";
 import { parseSasConnectionString } from "../lib/connectionStore/sas";
 import { signInWithEntra } from "../lib/entraAuth";
 
@@ -21,6 +24,8 @@ interface ConnectionDialogProps {
   open: boolean;
   onClose: () => void;
   onAdd: (draft: NamespaceConnectionDraft) => void;
+  onSave?: (connection: NamespaceConnection) => void;
+  connection?: NamespaceConnection | null;
   busy?: boolean;
 }
 
@@ -30,31 +35,49 @@ const EMPTY = {
   keyName: "",
   key: "",
   tenantId: "",
-  clientId: "",
   connectionString: "",
 };
 
-/** Add a namespace connection (SAS now; Entra scaffolded). */
+function fieldsFromConnection(connection: NamespaceConnection): typeof EMPTY {
+  const base = {
+    ...EMPTY,
+    friendlyName: connection.friendlyName,
+    endpoint: connection.serviceBusEndpoint,
+  };
+  if (connection.auth.kind === "sas") {
+    return { ...base, keyName: connection.auth.keyName, key: connection.auth.key };
+  }
+  return {
+    ...base,
+    tenantId: connection.auth.tenantId,
+  };
+}
+
+/** Add or edit a namespace connection (SAS now; Entra scaffolded). */
 export default function ConnectionDialog({
   open,
   onClose,
   onAdd,
+  onSave,
+  connection,
   busy,
 }: ConnectionDialogProps) {
+  const isEdit = Boolean(connection);
   const [authKind, setAuthKind] = useState<AuthKind>("sas");
   const [fields, setFields] = useState(EMPTY);
   const [signingIn, setSigningIn] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Reset the form whenever the dialog is (re)opened.
+  // Reset the form whenever the dialog is (re)opened, pre-filling from the
+  // connection being edited when present.
   useEffect(() => {
     if (open) {
-      setAuthKind("sas");
-      setFields(EMPTY);
+      setAuthKind(connection?.auth.kind ?? "sas");
+      setFields(connection ? fieldsFromConnection(connection) : EMPTY);
       setSigningIn(false);
       setError(null);
     }
-  }, [open]);
+  }, [open, connection]);
 
   const set = (name: keyof typeof EMPTY, value: string) =>
     setFields((prev) => ({ ...prev, [name]: value }));
@@ -79,9 +102,20 @@ export default function ConnectionDialog({
     fields.endpoint.trim() !== "" &&
     (authKind === "sas"
       ? fields.keyName.trim() !== "" && fields.key !== ""
-      : fields.tenantId.trim() !== "" && fields.clientId.trim() !== "");
+      : fields.tenantId.trim() !== "");
 
-  const handleAdd = async () => {
+  const submit = (
+    auth: NamespaceConnection["auth"],
+    base: Omit<NamespaceConnectionDraft, "auth">,
+  ) => {
+    if (isEdit && connection) {
+      onSave?.({ id: connection.id, ...base, auth });
+    } else {
+      onAdd({ ...base, auth });
+    }
+  };
+
+  const handleSubmit = async () => {
     if (!valid || signingIn) return;
     const base = {
       friendlyName: fields.friendlyName.trim(),
@@ -89,28 +123,46 @@ export default function ConnectionDialog({
     };
 
     if (authKind === "sas") {
-      onAdd({
-        ...base,
-        auth: { kind: "sas", keyName: fields.keyName.trim(), key: fields.key },
-      });
+      submit(
+        { kind: "sas", keyName: fields.keyName.trim(), key: fields.key },
+        base,
+      );
       return;
     }
 
     const tenantId = fields.tenantId.trim();
-    const clientId = fields.clientId.trim();
+
+    // When editing an Entra connection whose identity is unchanged, keep the
+    // existing refresh token instead of forcing an interactive sign-in.
+    if (
+      isEdit &&
+      connection?.auth.kind === "entra" &&
+      connection.auth.tenantId === tenantId &&
+      connection.auth.refreshToken
+    ) {
+      submit(
+        {
+          kind: "entra",
+          tenantId,
+          refreshToken: connection.auth.refreshToken,
+        },
+        base,
+      );
+      return;
+    }
+
     setError(null);
     setSigningIn(true);
     try {
-      const tokens = await signInWithEntra({ tenantId, clientId });
-      onAdd({
-        ...base,
-        auth: {
+      const tokens = await signInWithEntra({ tenantId });
+      submit(
+        {
           kind: "entra",
           tenantId,
-          clientId,
           refreshToken: tokens.refreshToken,
         },
-      });
+        base,
+      );
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
@@ -120,7 +172,7 @@ export default function ConnectionDialog({
 
   return (
     <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
-      <DialogTitle>Connect namespace</DialogTitle>
+      <DialogTitle>{isEdit ? "Edit namespace" : "Connect namespace"}</DialogTitle>
       <DialogContent>
         <Box sx={{ display: "flex", flexDirection: "column", gap: 2, pt: 1 }}>
           <TextField
@@ -186,12 +238,6 @@ export default function ConnectionDialog({
                 onChange={(e) => set("tenantId", e.target.value)}
                 fullWidth
               />
-              <TextField
-                label="Application (client) ID"
-                value={fields.clientId}
-                onChange={(e) => set("clientId", e.target.value)}
-                fullWidth
-              />
               <Typography variant="caption" color="text.secondary">
                 Connecting opens your browser to sign in with Entra ID. A
                 refresh token is stored so the connection stays signed in.
@@ -209,14 +255,16 @@ export default function ConnectionDialog({
         <Button onClick={onClose}>Cancel</Button>
         <Button
           variant="contained"
-          onClick={() => void handleAdd()}
+          onClick={() => void handleSubmit()}
           disabled={!valid || busy || signingIn}
         >
           {signingIn
             ? "Signing in\u2026"
-            : authKind === "entra"
-              ? "Sign in & connect"
-              : "Connect"}
+            : isEdit
+              ? "Save"
+              : authKind === "entra"
+                ? "Sign in & connect"
+                : "Connect"}
         </Button>
       </DialogActions>
     </Dialog>

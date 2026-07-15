@@ -9,7 +9,6 @@ export type ConnectionAuth =
   | {
       kind: "entra";
       tenantId: string;
-      clientId: string;
       refreshToken?: string;
     };
 

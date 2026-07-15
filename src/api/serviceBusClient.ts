@@ -150,7 +150,6 @@ export class ServiceBusClient implements ServiceBusApi {
     this.credential ??= createEntraCredential(
       {
         tenantId: auth.tenantId,
-        clientId: auth.clientId,
         refreshToken: auth.refreshToken,
       },
       (rotated) => this.persistRefreshToken(rotated),

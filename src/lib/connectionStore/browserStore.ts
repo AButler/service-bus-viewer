@@ -22,7 +22,6 @@ interface StoredConnection {
   authKind: "sas" | "entra";
   keyName?: string;
   tenantId?: string;
-  clientId?: string;
   secret: EncryptedBlob | null;
 }
 
@@ -46,7 +45,6 @@ async function toStored(
     ...base,
     authKind: "entra",
     tenantId: connection.auth.tenantId,
-    clientId: connection.auth.clientId,
     secret: connection.auth.refreshToken
       ? await encryptString(connection.auth.refreshToken)
       : null,
@@ -76,7 +74,6 @@ async function fromStored(
     auth: {
       kind: "entra",
       tenantId: stored.tenantId ?? "",
-      clientId: stored.clientId ?? "",
       refreshToken: stored.secret
         ? await decryptString(stored.secret)
         : undefined,
