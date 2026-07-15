@@ -81,8 +81,12 @@ function App() {
   const queryClient = useQueryClient();
   const namespacesQuery = useNamespaces();
   const connectionsQuery = useConnections();
-  const { addConnection, updateConnection, removeConnection, reorderConnections } =
-    useConnectionMutations();
+  const {
+    addConnection,
+    updateConnection,
+    removeConnection,
+    reorderConnections,
+  } = useConnectionMutations();
   const isTreeFetching = useIsFetching({
     predicate: (query) =>
       ["namespaces", "queues", "topics", "subscriptions"].includes(
