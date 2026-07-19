@@ -17,7 +17,39 @@ export function useServiceBusClient(
   connection: NamespaceConnection,
 ): ServiceBusApi {
   if (!isTauri()) return new MockServiceBusClient(connection);
-  return withLogging(new ServiceBusClient(connection), connection.friendlyName);
+  return withLogging(getRealClient(connection), connection.friendlyName);
+}
+
+// Real clients are cached per connection so the in-memory Entra credential (its
+// cached access token and the *rotating* refresh token) survives across calls.
+// Creating a fresh client on every query would restart auth from the stored
+// refresh token; Entra rotates refresh tokens on use (and SPA-style ones are
+// single-use), so a recreated client would hit an already-consumed token and
+// fall back to an interactive sign-in on every queue/sub-queue click.
+const realClientCache = new Map<
+  string,
+  { signature: string; client: ServiceBusClient }
+>();
+
+// Identity of a connection that requires a *new* client when it changes. The
+// Entra refresh token is deliberately excluded: it rotates on every use, and
+// the cached client's in-memory token is always more current than the store.
+function connectionSignature(connection: NamespaceConnection): string {
+  const { auth } = connection;
+  const authPart =
+    auth.kind === "sas"
+      ? `sas:${auth.keyName}:${auth.key}`
+      : `entra:${auth.tenantId}`;
+  return `${connection.serviceBusEndpoint}|${authPart}`;
+}
+
+function getRealClient(connection: NamespaceConnection): ServiceBusClient {
+  const signature = connectionSignature(connection);
+  const cached = realClientCache.get(connection.id);
+  if (cached && cached.signature === signature) return cached.client;
+  const client = new ServiceBusClient(connection);
+  realClientCache.set(connection.id, { signature, client });
+  return client;
 }
 
 // Wrap a client so each API call (and any failure) is logged to the session log.
