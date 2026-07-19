@@ -13,6 +13,7 @@ import type {
   SBQueue,
   SBSubscription,
   SBTopic,
+  SendMessageParams,
   ServiceBusApi,
   ServiceBusReceivedMessage,
 } from "./types";
@@ -411,5 +412,11 @@ export class MockServiceBusClient implements ServiceBusApi {
     params: PeekMessagesParams,
   ): Promise<PagedResult<ServiceBusReceivedMessage>> {
     return mockPeekMessages(this.namespaceName, params);
+  }
+
+  async sendMessage(params: SendMessageParams): Promise<void> {
+    // The mock has no writable store; just simulate the network round-trip so
+    // the sending state is exercised.
+    await delay(latency(`send:${this.namespaceName}:${params.entityPath}`));
   }
 }

@@ -4,11 +4,12 @@
 import { useSyncExternalStore } from "react";
 import {
   keepPreviousData,
+  useMutation,
   useQuery,
   useQueryClient,
 } from "@tanstack/react-query";
 import type { NamespaceConnection } from "../lib/connectionStore";
-import type { PeekMessagesParams } from "../api/types";
+import type { PeekMessagesParams, SendMessageParams } from "../api/types";
 import {
   listNamespaces,
   useServiceBusClient,
@@ -87,5 +88,37 @@ export function useMessages(params: PeekMessagesParams | null) {
     queryFn: () => useServiceBusClient(connection!).peekMessages(params!),
     enabled: params !== null && connection !== undefined,
     placeholderData: keepPreviousData,
+  });
+}
+
+/**
+ * Send a message to a queue or topic. On success, invalidates the peeked
+ * messages and the entity lists so counts refresh.
+ */
+export function useSendMessage() {
+  const queryClient = useQueryClient();
+  const connections = useConnections();
+  return useMutation({
+    mutationFn: (params: SendMessageParams) => {
+      const connection = connections.data?.find(
+        (c) => c.friendlyName === params.namespaceName,
+      );
+      if (!connection) {
+        throw new Error(`No connection for namespace "${params.namespaceName}".`);
+      }
+      return useServiceBusClient(connection).sendMessage(params);
+    },
+    onSuccess: (_result, params) => {
+      queryClient.invalidateQueries({ queryKey: ["messages"] });
+      queryClient.invalidateQueries({
+        queryKey: ["queues", params.namespaceName],
+      });
+      queryClient.invalidateQueries({
+        queryKey: ["topics", params.namespaceName],
+      });
+      queryClient.invalidateQueries({
+        queryKey: ["subscriptions", params.namespaceName],
+      });
+    },
   });
 }

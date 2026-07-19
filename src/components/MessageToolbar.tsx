@@ -1,5 +1,6 @@
 import { Box, Chip, IconButton, Tooltip, Typography } from "@mui/material";
 import RefreshRoundedIcon from "@mui/icons-material/RefreshRounded";
+import SendRoundedIcon from "@mui/icons-material/SendRounded";
 import type { SelectedEntity } from "./NamespaceTree";
 import { VIEW_LABELS, type MessageView } from "../lib/selectionRoute";
 
@@ -9,6 +10,7 @@ interface MessageToolbarProps {
   entity: SelectedEntity | null;
   view: MessageView;
   onRefresh: () => void;
+  onSend: () => void;
 }
 
 // The count for the current view, or undefined when none is available (e.g.
@@ -42,6 +44,7 @@ export default function MessageToolbar({
   entity,
   view,
   onRefresh,
+  onSend,
 }: MessageToolbarProps) {
   const count = viewCount(entity, view);
   const isDeadLetter = view === "deadletter" || view === "transferDeadletter";
@@ -130,6 +133,18 @@ export default function MessageToolbar({
               disabled={entity === null}
             >
               <RefreshRoundedIcon fontSize="small" />
+            </IconButton>
+          </span>
+        </Tooltip>
+        <Tooltip title="Send message">
+          <span>
+            <IconButton
+              size="small"
+              aria-label="Send message"
+              onClick={onSend}
+              disabled={entity === null}
+            >
+              <SendRoundedIcon fontSize="small" />
             </IconButton>
           </span>
         </Tooltip>

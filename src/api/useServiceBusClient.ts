@@ -79,6 +79,8 @@ function withLogging(client: ServiceBusApi, namespace: string): ServiceBusApi {
           ` [skip ${params.skip}, top ${params.top}]`,
         () => client.peekMessages(params),
       ),
+    sendMessage: (params) =>
+      run(`send to "${params.entityPath}"`, () => client.sendMessage(params)),
   };
 }
 

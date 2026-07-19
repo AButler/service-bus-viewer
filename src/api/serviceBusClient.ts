@@ -14,12 +14,14 @@ import type {
   SBQueue,
   SBSubscription,
   SBTopic,
+  SendMessageParams,
   ServiceBusApi,
   ServiceBusReceivedMessage,
 } from "./types";
 import type {
   QueueProperties,
   ServiceBusReceivedMessage as SdkMessage,
+  ServiceBusMessage as SdkSendableMessage,
   SubscriptionProperties,
 } from "@azure/service-bus";
 import type { TokenCredential } from "@azure/core-auth";
@@ -405,6 +407,37 @@ export class ServiceBusClient implements ServiceBusApi {
         mapped = mapped.filter((m) => m.state === stateFilter);
       }
       return mapped.slice(skip, skip + top);
+    } finally {
+      await client.close();
+    }
+  }
+
+  async sendMessage(params: SendMessageParams): Promise<void> {
+    const { entityPath, message } = params;
+    const { ServiceBusClient: SdkClient } = await import("@azure/service-bus");
+    const client =
+      this.connection.auth.kind === "sas"
+        ? new SdkClient(this.connectionString())
+        : new SdkClient(this.host(), this.getCredential());
+    try {
+      const sender = client.createSender(entityPath);
+      const sdkMessage: SdkSendableMessage = {
+        body: message.body,
+        contentType: message.contentType,
+        subject: message.subject,
+        messageId: message.messageId,
+        correlationId: message.correlationId,
+        sessionId: message.sessionId,
+        partitionKey: message.partitionKey,
+        timeToLive: message.timeToLive,
+        scheduledEnqueueTimeUtc: message.scheduledEnqueueTimeUtc,
+        applicationProperties: message.applicationProperties ?? undefined,
+      };
+      try {
+        await sender.sendMessages(sdkMessage);
+      } finally {
+        await sender.close();
+      }
     } finally {
       await client.close();
     }

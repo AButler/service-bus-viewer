@@ -16,6 +16,7 @@ interface MessagesPanelProps {
   paginationModel: GridPaginationModel;
   selectedId: string | null;
   onRefresh: () => void;
+  onSend: () => void;
   onPaginationModelChange: (model: GridPaginationModel) => void;
   onSelect: (message: ServiceBusReceivedMessage) => void;
 }
@@ -31,6 +32,7 @@ export default function MessagesPanel({
   paginationModel,
   selectedId,
   onRefresh,
+  onSend,
   onPaginationModelChange,
   onSelect,
 }: MessagesPanelProps) {
@@ -48,7 +50,12 @@ export default function MessagesPanel({
     >
       {entity ? (
         <>
-          <MessageToolbar entity={entity} view={view} onRefresh={onRefresh} />
+          <MessageToolbar
+            entity={entity}
+            view={view}
+            onRefresh={onRefresh}
+            onSend={onSend}
+          />
           <Box sx={{ flexGrow: 1, minHeight: 0 }}>
             <MessageGrid
               rows={rows}

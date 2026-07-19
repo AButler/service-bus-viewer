@@ -130,6 +130,34 @@ export interface PeekMessagesParams {
 }
 
 /**
+ * A message to send, mirroring the fields of the data-plane SDK's
+ * `ServiceBusMessage`. `body` is sent as provided.
+ */
+export interface SendableMessage {
+  body: unknown;
+  contentType?: string;
+  subject?: string;
+  messageId?: string;
+  correlationId?: string;
+  sessionId?: string;
+  partitionKey?: string;
+  /** Time to live, in milliseconds. */
+  timeToLive?: number;
+  /** When set, the message is scheduled to appear at this time. */
+  scheduledEnqueueTimeUtc?: Date;
+  applicationProperties?: Record<string, ApplicationPropertyValue>;
+}
+
+/** Parameters for sending a message to a queue or topic. */
+export interface SendMessageParams {
+  namespaceName: string;
+  /** The queue or topic name to send to (never a subscription). */
+  entityPath: string;
+  entityType: "queue" | "topic";
+  message: SendableMessage;
+}
+
+/**
  * A page of results. Mirrors the ARM `{ value, nextLink }` envelope, augmented
  * with `totalCount` so paged callers can display the full total.
  */
@@ -151,4 +179,5 @@ export interface ServiceBusApi {
   peekMessages(
     params: PeekMessagesParams,
   ): Promise<PagedResult<ServiceBusReceivedMessage>>;
+  sendMessage(params: SendMessageParams): Promise<void>;
 }

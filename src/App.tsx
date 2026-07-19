@@ -11,11 +11,15 @@ import TopBar from "./components/TopBar";
 import NamespacesPanel from "./components/NamespacesPanel";
 import MessagesPanel from "./components/MessagesPanel";
 import ConnectionDialog from "./components/ConnectionDialog";
+import SendMessageDialog, {
+  type SendTarget,
+} from "./components/SendMessageDialog";
 import LogsPanel from "./components/LogsPanel";
 import {
   useMessages,
   useNamespaces,
   useQueues,
+  useSendMessage,
   useSubscriptions,
   useTopics,
 } from "./hooks/useServiceBus";
@@ -27,6 +31,7 @@ import type {
 import type {
   MessageCountDetails,
   MessageView,
+  SendableMessage,
   ServiceBusReceivedMessage,
 } from "./api/types";
 import {
@@ -78,6 +83,9 @@ function App() {
     useState<NamespaceConnection | null>(null);
   const [logsOpen, setLogsOpen] = useState(false);
   const [logsHeight, setLogsHeight] = useState(DEFAULT_LOGS_HEIGHT);
+
+  const [sendOpen, setSendOpen] = useState(false);
+  const [sendError, setSendError] = useState<string | null>(null);
 
   const queryClient = useQueryClient();
   const namespacesQuery = useNamespaces();
@@ -271,6 +279,48 @@ function App() {
     queryClient.invalidateQueries({ queryKey: ["messages"] });
   };
 
+  const sendMessage = useSendMessage();
+
+  // The queue or topic to send to. A subscription routes to its parent topic.
+  const sendTarget = useMemo<SendTarget | null>(() => {
+    if (!selectedEntity) return null;
+    if (selectedEntity.kind === "queue") {
+      return { name: selectedEntity.entityPath, type: "queue" };
+    }
+    if (selectedEntity.kind === "topic") {
+      return { name: selectedEntity.entityPath, type: "topic" };
+    }
+    return { name: selectedEntity.entityPath.split("/")[0], type: "topic" };
+  }, [selectedEntity]);
+
+  const openSendDialog = () => {
+    setSendError(null);
+    setSendOpen(true);
+  };
+
+  const closeSendDialog = () => {
+    setSendOpen(false);
+    setSendError(null);
+  };
+
+  const handleSendMessage = (message: SendableMessage) => {
+    if (!selectedEntity || !sendTarget) return;
+    setSendError(null);
+    sendMessage.mutate(
+      {
+        namespaceName: selectedEntity.namespaceName,
+        entityPath: sendTarget.name,
+        entityType: sendTarget.type,
+        message,
+      },
+      {
+        onSuccess: closeSendDialog,
+        onError: (err) =>
+          setSendError(err instanceof Error ? err.message : String(err)),
+      },
+    );
+  };
+
   const handleConnect = (draft: NamespaceConnectionDraft) => {
     addConnection.mutate(draft, { onSuccess: () => setConnectOpen(false) });
   };
@@ -395,6 +445,7 @@ function App() {
           paginationModel={paginationModel}
           selectedId={selection?.sequenceNumber ?? null}
           onRefresh={handleRefreshMessages}
+          onSend={openSendDialog}
           onPaginationModelChange={handlePaginationChange}
           onSelect={handleMessageSelect}
         />
@@ -464,6 +515,15 @@ function App() {
         onSave={handleSave}
         connection={editConnection}
         busy={addConnection.isPending || updateConnection.isPending}
+      />
+
+      <SendMessageDialog
+        open={sendOpen}
+        target={sendTarget}
+        busy={sendMessage.isPending}
+        error={sendError}
+        onClose={closeSendDialog}
+        onSend={handleSendMessage}
       />
     </Box>
   );
