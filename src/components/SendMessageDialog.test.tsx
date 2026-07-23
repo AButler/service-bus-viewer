@@ -61,7 +61,9 @@ describe("buildSendableMessage", () => {
       scheduledEnqueueTime: "2026-07-19T14:30",
     });
     expect(message.scheduledEnqueueTimeUtc).toBeInstanceOf(Date);
-    expect(Number.isNaN(message.scheduledEnqueueTimeUtc!.getTime())).toBe(false);
+    expect(Number.isNaN(message.scheduledEnqueueTimeUtc!.getTime())).toBe(
+      false,
+    );
   });
 
   it("builds application properties from non-empty keys only", () => {

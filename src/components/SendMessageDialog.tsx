@@ -154,7 +154,7 @@ export default function SendMessageDialog({
   };
 
   return (
-    <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
+    <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth>
       <DialogTitle>
         {target
           ? `Send message to ${target.type} \u201c${target.name}\u201d`
@@ -162,77 +162,94 @@ export default function SendMessageDialog({
       </DialogTitle>
       <DialogContent>
         <Box sx={{ display: "flex", flexDirection: "column", gap: 2, pt: 1 }}>
-          <TextField
-            label="Body"
-            value={fields.body}
-            onChange={(e) => set("body", e.target.value)}
-            fullWidth
-            multiline
-            minRows={4}
-            autoFocus
-          />
-          <TextField
-            label="Content type"
-            value={fields.contentType}
-            onChange={(e) => set("contentType", e.target.value)}
-            fullWidth
-          />
-
           <Box
             sx={{
               display: "grid",
               gridTemplateColumns: "1fr 1fr",
               gap: 2,
+              alignItems: "start",
             }}
           >
             <TextField
-              label="Subject"
-              value={fields.subject}
-              onChange={(e) => set("subject", e.target.value)}
+              label="Body"
+              value={fields.body}
+              onChange={(e) => set("body", e.target.value)}
               fullWidth
+              multiline
+              minRows={12}
+              autoFocus
+              sx={{
+                height: "100%",
+                "& .MuiInputBase-root": {
+                  height: "100%",
+                  alignItems: "flex-start",
+                },
+              }}
             />
-            <TextField
-              label="Message ID"
-              value={fields.messageId}
-              onChange={(e) => set("messageId", e.target.value)}
-              fullWidth
-            />
-            <TextField
-              label="Correlation ID"
-              value={fields.correlationId}
-              onChange={(e) => set("correlationId", e.target.value)}
-              fullWidth
-            />
-            <TextField
-              label="Session ID"
-              value={fields.sessionId}
-              onChange={(e) => set("sessionId", e.target.value)}
-              fullWidth
-            />
-            <TextField
-              label="Partition key"
-              value={fields.partitionKey}
-              onChange={(e) => set("partitionKey", e.target.value)}
-              fullWidth
-            />
-            <TextField
-              label="Time to live (seconds)"
-              value={fields.timeToLiveSeconds}
-              onChange={(e) => set("timeToLiveSeconds", e.target.value)}
-              type="number"
-              fullWidth
-            />
-          </Box>
 
-          <TextField
-            label="Scheduled enqueue time"
-            value={fields.scheduledEnqueueTime}
-            onChange={(e) => set("scheduledEnqueueTime", e.target.value)}
-            type="datetime-local"
-            fullWidth
-            slotProps={{ inputLabel: { shrink: true } }}
-            helperText="Leave empty to enqueue immediately."
-          />
+            <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
+              <TextField
+                label="Content type"
+                value={fields.contentType}
+                onChange={(e) => set("contentType", e.target.value)}
+                size="small"
+                fullWidth
+              />
+              <TextField
+                label="Subject"
+                value={fields.subject}
+                onChange={(e) => set("subject", e.target.value)}
+                size="small"
+                fullWidth
+              />
+              <TextField
+                label="Message ID"
+                value={fields.messageId}
+                onChange={(e) => set("messageId", e.target.value)}
+                size="small"
+                fullWidth
+              />
+              <TextField
+                label="Correlation ID"
+                value={fields.correlationId}
+                onChange={(e) => set("correlationId", e.target.value)}
+                size="small"
+                fullWidth
+              />
+              <TextField
+                label="Session ID"
+                value={fields.sessionId}
+                onChange={(e) => set("sessionId", e.target.value)}
+                size="small"
+                fullWidth
+              />
+              <TextField
+                label="Partition key"
+                value={fields.partitionKey}
+                onChange={(e) => set("partitionKey", e.target.value)}
+                size="small"
+                fullWidth
+              />
+              <TextField
+                label="Time to live (seconds)"
+                value={fields.timeToLiveSeconds}
+                onChange={(e) => set("timeToLiveSeconds", e.target.value)}
+                type="number"
+                size="small"
+                fullWidth
+              />
+              <TextField
+                label="Scheduled enqueue time"
+                value={fields.scheduledEnqueueTime}
+                onChange={(e) => set("scheduledEnqueueTime", e.target.value)}
+                type="datetime-local"
+                size="small"
+                fullWidth
+                slotProps={{ inputLabel: { shrink: true } }}
+                helperText="Leave empty to enqueue immediately."
+              />
+            </Box>
+          </Box>
 
           <Divider />
 

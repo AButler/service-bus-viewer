@@ -104,7 +104,9 @@ export function useSendMessage() {
         (c) => c.friendlyName === params.namespaceName,
       );
       if (!connection) {
-        throw new Error(`No connection for namespace "${params.namespaceName}".`);
+        throw new Error(
+          `No connection for namespace "${params.namespaceName}".`,
+        );
       }
       return useServiceBusClient(connection).sendMessage(params);
     },
